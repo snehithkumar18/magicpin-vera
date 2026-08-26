@@ -245,8 +245,8 @@ async def metadata():
         "team_members": ["Candidate Engineer"],
         "model": "deterministic-grounded-composer-v1",
         "approach": "Zero-hallucination dual engine with instant intent handoffs and sub-millisecond WA auto-reply filtering",
-        "version": "1.0.0",
-        "submitted_at": "2026-04-29T10:00:00Z",
+        "version": "1.2.0",
+        "submitted_at": utc_now_iso(),
     }
 
 

@@ -31,7 +31,10 @@ def push_file(args):
         return None
 
 
-def main(server_url: str = "http://localhost:8080"):
+import sys
+
+def main():
+    server_url = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8080"
     root = Path(__file__).parent / "expanded"
     tasks = []
 

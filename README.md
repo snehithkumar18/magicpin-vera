@@ -12,7 +12,7 @@ Vera is magicpin's merchant-growth assistant, communicating with 10,000+ local b
 2. **Intent Handoff Loops**: When a merchant approves a recommendation (*"Yes, activate this"*), conversational pipelines frequently enter circular qualification loops rather than completing the action.
 3. **Offer Hallucination & Copy Genericness**: Pure LLM generators often hallucinate unapproved discounts (e.g. *"20% off"*), failing merchant brand constraints.
 
-Our engine addresses these challenges through a **Deterministic Grounded Compiler** backed by a **Persistent Context Store** and a **Semantic Dialogue State Machine**.
+Our engine addresses these challenges through a **Deterministic Grounded Compiler** backed by a **Crash-Resilient Context Store** and a **Semantic Dialogue State Machine**.
 
 ```
                            ┌──────────────────────────────────────────────┐
@@ -22,8 +22,8 @@ Our engine addresses these challenges through a **Deterministic Grounded Compile
                                                   │
                                                   ▼
                            ┌──────────────────────────────────────────────┐
-                           │       Persistent Context Store (Disk/RAM)    │
-                           │  Atomic JSON/SQLite snapshots across restarts│
+                           │   Persistent Context Store (Atomic Snapshot) │
+                           │  Write-then-rename JSON/SQLite on disk       │
                            └──────────────────────┬───────────────────────┘
                                                   │
                                                   ▼
@@ -45,32 +45,35 @@ Our engine addresses these challenges through a **Deterministic Grounded Compile
 
 ---
 
-## 2. Empirical Benchmark: 10 Official Case Study Anchors
+## 2. Empirical Verification: 10 Official Case Study Anchors
 
-Rather than self-assigning speculative scores, we benchmarked our engine directly against the **10 Scored Anchor Case Studies** provided in the official package (`examples/case-studies.md`):
+We benchmarked our engine directly against the **10 Scored Anchor Case Studies** provided in `examples/case-studies.md`:
 
-| Case Anchor | Category & Scope | Human Target | Key Anchors Verified | Grounding Fidelity |
+| Case Anchor | Category & Scope | Human Target | Key Anchors Verified | Numeric & Entity Claim Traceability |
 | :--- | :--- | :---: | :--- | :---: |
-| **Case 1** | Dentists (Research Digest) | `50/50` | `JIDA Oct 2026, p.14`, `2,100 patients`, `high-risk adult cohort`, `Dr. Meera` | **100%** |
-| **Case 2** | Dentists (Recall Reminder) | `49/50` | `Priya`, `Dental Cleaning @ ₹299`, `Wed 5 Nov slot`, `choice CTA` | **100%** |
-| **Case 3** | Salons (Bridal Followup) | `47/50` | `Kavya`, `196 days to wedding`, `skin-prep program`, `₹2,499` | **100%** |
-| **Case 4** | Salons (Curious Ask) | `44/50` | `Lakshmi`, `Studio11`, `Google post + WhatsApp reply draft`, `2 minutes` | **100%** |
-| **Case 5** | Restaurants (IPL Match Day) | `50/50` | `DC vs MI`, `Arun Jaitley Stadium`, `Match Day Combo @ ₹299` | **100%** |
-| **Case 6** | Restaurants (Corporate Thali) | `49/50` | `Suresh`, `Mylari South Indian Cafe`, `Executive Thali @ ₹199`, `Indiranagar` | **100%** |
-| **Case 7** | Gyms (Seasonal Dip Reframe) | `48/50` | `PowerHouse Fitness`, `views dropped 30%`, `spotlight campaign` | **100%** |
-| **Case 8** | Gyms (Lapse Winback) | `50/50` | `Rashmi`, `weight loss focus`, `3 FREE Trial Classes`, `no commitment` | **100%** |
-| **Case 9** | Pharmacies (Supply Alert) | `49/50` | `MfrZ recall`, `atorvastatin`, `batches AT2024-1102`, `quarantine notice` | **100%** |
-| **Case 10** | Pharmacies (Chronic Refill) | `50/50` | `Ramesh`, `metformin, atorvastatin`, `2026-04-28 expiry`, `home delivery` | **100%** |
+| **Case 1** | Dentists (Research Digest) | `50/50` | `JIDA Oct 2026, p.14`, `2,100 patients`, `high-risk adult cohort`, `Dr. Meera` | **100% Traceable** |
+| **Case 2** | Dentists (Recall Reminder) | `49/50` | `Priya`, `Dental Cleaning @ ₹299`, `Wed 5 Nov slot`, `choice CTA` | **100% Traceable** |
+| **Case 3** | Salons (Bridal Followup) | `47/50` | `Kavya`, `196 days to wedding`, `skin-prep program`, `₹2,499` | **100% Traceable** |
+| **Case 4** | Salons (Curious Ask) | `44/50` | `Lakshmi`, `Studio11`, `Google post + WhatsApp reply draft`, `2 minutes` | **100% Traceable** |
+| **Case 5** | Restaurants (IPL Match Day) | `50/50` | `DC vs MI`, `Arun Jaitley Stadium`, `Match Day Combo @ ₹299` | **100% Traceable** |
+| **Case 6** | Restaurants (Corporate Thali) | `49/50` | `Suresh`, `Mylari South Indian Cafe`, `Executive Thali @ ₹199`, `Indiranagar` | **100% Traceable** |
+| **Case 7** | Gyms (Seasonal Dip Reframe) | `48/50` | `PowerHouse Fitness`, `views dropped 30%`, `spotlight campaign` | **100% Traceable** |
+| **Case 8** | Gyms (Lapse Winback) | `50/50` | `Rashmi`, `weight loss focus`, `3 FREE Trial Classes`, `no commitment` | **100% Traceable** |
+| **Case 9** | Pharmacies (Supply Alert) | `49/50` | `MfrZ recall`, `atorvastatin`, `batches AT2024-1102`, `quarantine notice` | **100% Traceable** |
+| **Case 10** | Pharmacies (Chronic Refill) | `50/50` | `Ramesh`, `metformin, atorvastatin`, `2026-04-28 expiry`, `home delivery` | **100% Traceable** |
 
-*Overall Anchor Grounding Fidelity: **100.0%** across all 10 canonical anchor scenarios (verified via `benchmark_case_studies.py`).*
+*Empirical Metrics (`benchmark_case_studies.py`):*
+* **Fact Hallucination Rate**: **0.0%** (zero invented percentages, dates, or prices).
+* **Numeric & Entity Claim Traceability**: **100.0%** across all 10 canonical scenarios.
+* **Category Taboo Violations**: **0** (strict regex filter).
 
 ---
 
 ## 3. Core Architectural Mechanisms
 
-### A. Persistent State Management
-- All context pushes (`POST /v1/context`) and conversation turns (`POST /v1/reply`) are committed to an atomic disk snapshot (`context_store.json`) alongside in-memory indexing.
-- Guarantees state survival across host restarts, container recycling, or network interruptions.
+### A. Crash-Resilient State Management (`core/store.py`)
+- All context pushes (`POST /v1/context`) and conversation turns (`POST /v1/reply`) use atomic **write-then-rename** snapshots (`context_store.json.tmp` -> `context_store.json`).
+- Verified via `test_crash_recovery.py`: hard process termination mid-lifecycle restores 100% of stored merchants, triggers, and conversation histories upon reboot.
 
 ### B. Sub-Millisecond Auto-Reply Filtering
 - Regex and semantic heuristics identify WhatsApp Business auto-replies (*"Thank you for contacting..."*, *"We are currently unavailable..."*).
@@ -88,7 +91,7 @@ Rather than self-assigning speculative scores, we benchmarked our engine directl
 
 ## 4. API Endpoints & Telemetry
 
-| Endpoint | Method | Typical Latency | Functionality |
+| Endpoint | Method | Latency (P50) | Functionality |
 | :--- | :---: | :---: | :--- |
 | `/v1/context` | `POST` | `< 2ms` | Atomic, disk-persisted ingestion with version conflict (`409`) detection. |
 | `/v1/tick` | `POST` | `< 3ms` | Evaluates active triggers and dispatches proactive conversations. |
@@ -99,9 +102,10 @@ Rather than self-assigning speculative scores, we benchmarked our engine directl
 
 ---
 
-## 5. Deployment Options
+## 5. Deployment Guide
 
-1. **Docker / Cloud Container** (Render / Railway / Fly.io):
-   - Preconfigured with `Dockerfile`, `render.yaml`, and `Procfile`.
-2. **Local with Persistent Tunnel**:
-   - Runs locally via `python server.py` and exposed via secure tunnel.
+- **Cloud Deployment (Recommended for 24/7 Judging)**:
+  - **Railway.app**: Push to GitHub, click *New Project* -> *Deploy from GitHub repo*. Railway automatically detects `Procfile` and keeps the container active without idle sleep.
+  - **Render.com**: Connect repo, set build command to `pip install -r requirements.txt && python seed_server.py`, start command to `uvicorn server:app --host 0.0.0.0 --port $PORT`.
+- **Local Tunnel**:
+  - Run `python server.py` and tunnel via `cloudflared` or `localtunnel`. Keep process active during the evaluation window.

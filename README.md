@@ -1,6 +1,6 @@
 # Vera Message Engine — Architecture & Empirical Evaluation Report
 **magicpin AI Challenge Submission**  
-**Team**: Vera Elite AI | **Version**: 1.2.0 | **Author**: Candidate Engineer  
+**Team**: Snehith Barkam | **Version**: 1.2.0 | **Author**: Snehith Barkam  
 
 ---
 

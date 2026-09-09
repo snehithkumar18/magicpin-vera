@@ -250,10 +250,11 @@ async def healthz():
 @app.get("/v1/metadata")
 async def metadata():
     return {
-        "team_name": "Vera Elite AI",
-        "team_members": ["Candidate Engineer"],
+        "team_name": "Snehith Barkam",
+        "team_members": ["Snehith Barkam"],
         "model": "deterministic-grounded-composer-v1",
         "approach": "Zero-hallucination dual engine with instant intent handoffs and sub-millisecond WA auto-reply filtering",
+        "contact_email": "snehithbarkam@gmil.com",
         "version": "1.2.0",
         "submitted_at": utc_now_iso(),
     }

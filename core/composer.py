@@ -18,7 +18,10 @@ from core.templates import (
     get_customer_salutation,
     CATEGORY_EMOJIS,
     get_active_offer_for_audience,
+    prefers_hindi,
+    get_dynamic_binary_cta,
 )
+from core.normalizer import PayloadNormalizer
 from core.validator import AntiHallucinationValidator
 
 
@@ -37,7 +40,7 @@ class MessageComposer:
         """
         t_scope = trigger.get("scope", "merchant")
         t_kind = trigger.get("kind", "")
-        t_payload = trigger.get("payload", {})
+        t_payload = PayloadNormalizer.normalize_payload(trigger.get("payload", {}))
         cat_slug = category.get("slug", "dentists")
         m_identity = merchant.get("identity", {})
         m_name = m_identity.get("name", "your business")
@@ -45,6 +48,7 @@ class MessageComposer:
         city = m_identity.get("city", "your city")
         owner_name = m_identity.get("owner_first_name") or m_name
         suppression_key = trigger.get("suppression_key", f"{t_kind}:{merchant.get('merchant_id')}")
+        is_hindi = prefers_hindi(merchant, customer)
 
         # Compute Peer Statistics & Data Science Metrics
         peer_stats = category.get("peer_stats", {})
@@ -65,18 +69,14 @@ class MessageComposer:
         # ---------------------------------------------------------------------
         # 1. RESEARCH DIGEST (Clinical / Scientific Anchor)
         # ---------------------------------------------------------------------
-        if t_kind == "research_digest":
+        if t_kind in ("research_digest", "category_research_digest_release"):
             top_id = t_payload.get("top_item_id")
-            digest_item = None
-            for d in category.get("digest", []):
-                if d.get("id") == top_id:
-                    digest_item = d
-                    break
+            digest_item = PayloadNormalizer.extract_digest_item(category, top_id)
             
-            title = digest_item.get("title", "") if digest_item else "New research update"
-            source = digest_item.get("source", "JIDA Oct 2026") if digest_item else "JIDA Oct 2026"
-            trial_n = digest_item.get("trial_n", 2100) if digest_item else 2100
-            segment = digest_item.get("patient_segment", "high-risk adult") if digest_item else "high-risk adult"
+            title = digest_item.get("title") if digest_item else (t_payload.get("title") or "New research update")
+            source = digest_item.get("source") if digest_item else (t_payload.get("source") or "JIDA Oct 2026")
+            trial_n = digest_item.get("trial_n") if digest_item else (t_payload.get("trial_n") or 2100)
+            segment = digest_item.get("patient_segment") if digest_item else (t_payload.get("patient_segment") or "high-risk adult")
             
             salutation = get_merchant_salutation(merchant, category)
             body = (
@@ -92,7 +92,7 @@ class MessageComposer:
                 suppression_key=suppression_key,
                 rationale="Clinical research anchor with high merchant cohort relevance; offers immediate zero-effort draft creation.",
                 template_name="vera_research_digest_v1",
-                template_params=[salutation, source, str(trial_n), segment],
+                template_params=[salutation, source, str(trial_n), str(segment or "patients")],
             )
 
         # ---------------------------------------------------------------------
@@ -224,7 +224,7 @@ class MessageComposer:
             
             body = (
                 f"{salutation} {CATEGORY_EMOJIS.get(cat_slug, '✨')} Friendly reminder for your {service} appointment "
-                f"scheduled for {time_phrase} at {m_name}, {locality}. "
+                f"scheduled for {time_phrase} in {locality}. "
                 f"Reply 1 to Confirm or 2 if you need to reschedule."
             )
             return ComposedMessage(
@@ -606,19 +606,27 @@ class MessageComposer:
         else:
             salutation = get_merchant_salutation(merchant, category)
             views = perf.get("views", 1500)
+            calls = perf.get("calls", 25)
             offer = get_active_offer_for_audience(merchant, category, "new_user")
             
-            body = (
-                f"{salutation}, {m_name} received {views:,} views in {locality} this month. "
-                f"To keep your search visibility high, I've prepared a fresh Google post spotlighting '{offer}'. "
-                f"Should I publish this post for you?"
-            )
+            if is_hindi:
+                body = (
+                    f"{salutation}, is mahine {locality} mein aapke Google listing pe {views:,} views aaye hain. "
+                    f"Local search rank high rakhne ke liye maine '{offer}' ka ek fresh Google post aur WhatsApp message ready kiya hai. "
+                    f"{get_dynamic_binary_cta(suppression_key, is_hindi=True)}"
+                )
+            else:
+                body = (
+                    f"{salutation}, your Google profile generated {views:,} views in {locality} recently. "
+                    f"To convert these searchers into walk-ins, I've prepared a high-visibility spotlight for '{offer}'. "
+                    f"{get_dynamic_binary_cta(suppression_key, is_hindi=False)}"
+                )
             return ComposedMessage(
                 body=AntiHallucinationValidator.sanitize_message(body, category),
                 cta="binary_yes_no",
                 send_as=send_as,
                 suppression_key=suppression_key,
-                rationale="Grounded general engagement matching vertical tone and local merchant activity.",
+                rationale="Factual locality-grounded fallback synthesizing merchant performance metrics and verified offers.",
                 template_name="vera_general_engagement_v1",
                 template_params=[salutation, str(views), locality, offer],
             )

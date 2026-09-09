@@ -212,6 +212,7 @@ async def handle_reply(req: ReplyRequest):
         "message": req.message,
         "response_action": response.action,
         "response_body": response.body,
+        "is_auto_reply": conversation_engine.is_auto_reply(req.message),
     })
 
     # Telemetry

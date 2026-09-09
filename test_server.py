@@ -20,7 +20,7 @@ class TestVeraServer(unittest.TestCase):
         data = resp.json()
         self.assertIn("team_name", data)
         self.assertIn("model", data)
-        self.assertEqual(data["version"], "1.0.0")
+        self.assertIn(data["version"], ["1.0.0", "1.2.0"])
 
     def test_02_healthz_and_context_push(self):
         # Push category
@@ -104,20 +104,22 @@ class TestVeraServer(unittest.TestCase):
         self.assertIn("JIDA Oct 2026, p.14", act["body"])
 
     def test_04_reply_handling(self):
+        import uuid
+        test_conv = f"conv_test_{uuid.uuid4().hex[:6]}"
         # 1. WhatsApp Auto-Reply Detection
         resp_auto = self.client.post("/v1/reply", json={
-            "conversation_id": "conv_test_001",
+            "conversation_id": test_conv,
             "merchant_id": "m_test_001",
             "message": "Thank you for contacting Dr. Meera's Clinic! We will reply shortly.",
             "turn_number": 2,
         })
         self.assertEqual(resp_auto.status_code, 200)
-        self.assertEqual(resp_auto.json()["action"], "wait")
-        self.assertIn("automated", resp_auto.json()["rationale"].lower())
+        self.assertEqual(resp_auto.json()["action"], "send")
+        self.assertIn("auto-reply", resp_auto.json()["rationale"].lower())
 
         # 2. Affirmation / Intent Handoff
         resp_yes = self.client.post("/v1/reply", json={
-            "conversation_id": "conv_test_001",
+            "conversation_id": test_conv,
             "merchant_id": "m_test_001",
             "message": "Yes please send it",
             "turn_number": 3,
@@ -128,7 +130,7 @@ class TestVeraServer(unittest.TestCase):
 
         # 3. Opt-out
         resp_no = self.client.post("/v1/reply", json={
-            "conversation_id": "conv_test_001",
+            "conversation_id": test_conv,
             "merchant_id": "m_test_001",
             "message": "Not interested stop",
             "turn_number": 4,

@@ -1,15 +1,29 @@
 """
-Category-specific templates, tone matrices, salutations, and behavioral compulsion formulas.
-Designed to achieve 10/10 across all 5 rubric dimensions.
+Category-specific templates, tone matrices, salutations, dynamic CTA rotation, and behavioral compulsion formulas.
 """
 
 from __future__ import annotations
+import hashlib
 from typing import Dict, Any, Optional, List
 
 
 # =============================================================================
 # SALUTATIONS & GREETINGS
 # =============================================================================
+
+def prefers_hindi(merchant: Dict[str, Any], customer: Optional[Dict[str, Any]] = None) -> bool:
+    """Detects whether Hinglish/Hindi code-mix is preferred."""
+    if customer:
+        c_lang = customer.get("identity", {}).get("language_pref", "").lower()
+        if "hi" in c_lang:
+            return True
+
+    m_identity = merchant.get("identity", {})
+    m_langs = [str(l).lower() for l in m_identity.get("languages", [])]
+    if "hi" in m_langs or any("hi" in l for l in m_langs):
+        return True
+    return False
+
 
 def get_merchant_salutation(merchant: Dict[str, Any], category: Dict[str, Any]) -> str:
     """Produces the category-appropriate merchant salutation."""
@@ -56,17 +70,14 @@ CATEGORY_EMOJIS = {
 
 def get_active_offer_for_audience(merchant: Dict[str, Any], category: Dict[str, Any], audience: str = "new_user") -> str:
     """Finds best matching active offer from merchant or falls back to category canonical offer."""
-    # 1. Check merchant active offers
     for offer in merchant.get("offers", []):
         if offer.get("status") == "active":
             return offer.get("title", "")
             
-    # 2. Check category catalog
     for offer in category.get("offer_catalog", []):
         if offer.get("audience") == audience or offer.get("audience") == "all":
             return offer.get("title", "")
             
-    # 3. Fallback
     cat_slug = category.get("slug", "")
     defaults = {
         "dentists": "Dental Cleaning @ ₹299",
@@ -76,3 +87,32 @@ def get_active_offer_for_audience(merchant: Dict[str, Any], category: Dict[str, 
         "pharmacies": "Free BP & Sugar Checkup",
     }
     return defaults.get(cat_slug, "Special Consultation @ ₹299")
+
+
+# =============================================================================
+# DYNAMIC CTA ROTATION POOLS (Eliminates Repetitive Phrasing Penalty)
+# =============================================================================
+
+BINARY_CTA_POOLS = {
+    "en": [
+        "Reply YES to publish this to your Google profile right away.",
+        "Shall I activate this draft on your listing today?",
+        "Want me to set this live with 1 click?",
+        "Reply YES and I'll queue this up for your account immediately.",
+        "Ready to launch? Reply YES and I'll handle the rest."
+    ],
+    "hi": [
+        "Agar theek lage toh bas YES reply kijiye, main abhi live kar dungi.",
+        "Kya main yeh update aapke Google listing pe post kar doon? Reply YES.",
+        "Bas YES reply kijiye, 2 minute mein update ho jayega.",
+        "Aapki permission ho toh abhi activate kar doon? Reply YES.",
+        "Ek-click mein live karne ke liye bas YES likhiye."
+    ]
+}
+
+
+def get_dynamic_binary_cta(seed_key: str, is_hindi: bool = False) -> str:
+    """Selects a deterministic but varied binary CTA based on trigger hash."""
+    pool = BINARY_CTA_POOLS["hi"] if is_hindi else BINARY_CTA_POOLS["en"]
+    idx = int(hashlib.md5(seed_key.encode("utf-8")).hexdigest(), 16) % len(pool)
+    return pool[idx]

@@ -41,7 +41,7 @@ class MessageComposer:
         t_scope = trigger.get("scope", "merchant")
         t_kind = trigger.get("kind", "")
         t_payload = PayloadNormalizer.normalize_payload(trigger.get("payload", {}))
-        cat_slug = category.get("slug", "dentists")
+        cat_slug = category.get("slug") or merchant.get("category_slug") or "dentists"
         m_identity = merchant.get("identity", {})
         m_name = m_identity.get("name", "your business")
         locality = m_identity.get("locality", "your area")
@@ -147,94 +147,135 @@ class MessageComposer:
         # 4. RECALL DUE (Customer-Facing with Exact Slots & Language Mix)
         # ---------------------------------------------------------------------
         elif t_kind in ("recall_due", "recall_reminder"):
-            salutation = get_customer_salutation(customer or {}, merchant)
-            slots = t_payload.get("available_slots", [])
-            service_due = t_payload.get("service_due", "6_month_cleaning").replace("_", " ")
-            
-            if slots and len(slots) >= 2:
-                slot_text = f"1️⃣ {slots[0].get('label')}  ya  2️⃣ {slots[1].get('label')}"
-                cta_type = "choice"
-                reply_prompt = "Reply 1 ya 2 to confirm, or tell us a time that works!"
-            elif slots and len(slots) == 1:
-                slot_text = slots[0].get('label')
-                cta_type = "binary_yes_no"
-                reply_prompt = "Reply YES to lock this in, or let us know your preferred time."
-            else:
-                slot_text = "this week"
-                cta_type = "open_ended"
-                reply_prompt = "Tell us what day/time works best for you!"
+            if send_as == "merchant_on_behalf":
+                salutation = get_customer_salutation(customer or {}, merchant)
+                slots = t_payload.get("available_slots", [])
+                service_due = t_payload.get("service_due", "6_month_cleaning").replace("_", " ")
+                
+                if slots and len(slots) >= 2:
+                    slot_text = f"1️⃣ {slots[0].get('label')}  ya  2️⃣ {slots[1].get('label')}"
+                    cta_type = "choice"
+                    reply_prompt = "Reply 1 ya 2 to confirm, or tell us a time that works!"
+                elif slots and len(slots) == 1:
+                    slot_text = slots[0].get('label')
+                    cta_type = "binary_yes_no"
+                    reply_prompt = "Reply YES to lock this in, or let us know your preferred time."
+                else:
+                    slot_text = "this week"
+                    cta_type = "open_ended"
+                    reply_prompt = "Tell us what day/time works best for you!"
 
-            active_offer = get_active_offer_for_audience(merchant, category, "new_user")
-            body = (
-                f"{salutation} {CATEGORY_EMOJIS.get(cat_slug, '✨')} Your {service_due} is due! "
-                f"Apke liye slots ready hain: {slot_text}. "
-                f"Includes {active_offer}. {reply_prompt}"
-            )
+                active_offer = get_active_offer_for_audience(merchant, category, "new_user")
+                body = (
+                    f"{salutation} {CATEGORY_EMOJIS.get(cat_slug, '✨')} Your {service_due} is due! "
+                    f"Apke liye slots ready hain: {slot_text}. "
+                    f"Includes {active_offer}. {reply_prompt}"
+                )
+                rationale = "Customer recall prompt honoring customer slot preferences and natural language style."
+                template_name = "merchant_recall_reminder_v1"
+                template_params = [c_name, service_due, slot_text]
+            else:
+                salutation = get_merchant_salutation(merchant, category)
+                service_due = t_payload.get("service_due", "6-month routine recall").replace("_", " ")
+                active_offer = get_active_offer_for_audience(merchant, category, "new_user")
+                body = (
+                    f"{salutation}, customer recall notice: your 6-month recall window has opened for regular patients at {m_name}. "
+                    f"Highlighting '{active_offer}' usually reactivates 20%+ of past patients within 48 hours. "
+                    f"Shall I draft a recall WhatsApp broadcast for your review?"
+                )
+                cta_type = "binary_yes_no"
+                rationale = "Proactive merchant alert for customer recall cadence to maximize repeat patient retention."
+                template_name = "vera_recall_alert_v1"
+                template_params = [salutation, service_due, active_offer]
+
             return ComposedMessage(
                 body=AntiHallucinationValidator.sanitize_message(body, category),
                 cta=cta_type,
                 send_as=send_as,
                 suppression_key=suppression_key,
-                rationale="Customer recall prompt honoring customer slot preferences and natural language style.",
-                template_name="merchant_recall_reminder_v1",
-                template_params=[c_name, service_due, slot_text],
+                rationale=rationale,
+                template_name=template_name,
+                template_params=template_params,
             )
 
         # ---------------------------------------------------------------------
         # 5. CHRONIC REFILL DUE (Pharmacy Adherence)
         # ---------------------------------------------------------------------
         elif t_kind in ("chronic_refill_due", "refill_due"):
-            salutation = get_customer_salutation(customer or {}, merchant)
             molecules = t_payload.get("molecule_list", ["essential maintenance medicines"])
             mol_str = ", ".join(molecules[:3])
             runs_out = t_payload.get("stock_runs_out_iso", "")
-            
-            if runs_out and "T" in runs_out:
-                date_phrase = f"on {runs_out.split('T')[0]}"
+            date_phrase = f"on {runs_out.split('T')[0]}" if runs_out and "T" in runs_out else "in 2 days"
+
+            if send_as == "merchant_on_behalf":
+                salutation = get_customer_salutation(customer or {}, merchant)
+                body = (
+                    f"{salutation} 💊 Quick reminder: your monthly supply for {mol_str} runs out {date_phrase}. "
+                    f"We have fresh stock ready for home delivery. "
+                    f"Reply YES to re-order now and we'll dispatch it to your saved address!"
+                )
+                rationale = "High-urgency chronic medication adherence reminder with zero-friction home delivery CTA."
+                template_name = "merchant_refill_reminder_v1"
+                template_params = [c_name, mol_str, date_phrase]
             else:
-                date_phrase = "in 2 days"
-            
-            body = (
-                f"{salutation} 💊 Quick reminder: your monthly supply for {mol_str} runs out {date_phrase}. "
-                f"We have fresh stock ready for home delivery. "
-                f"Reply YES to re-order now and we'll dispatch it to your saved address!"
-            )
+                salutation = get_merchant_salutation(merchant, category)
+                body = (
+                    f"{salutation}, pharmacy refill alert: chronic maintenance refills for {mol_str} are due this week for regular patients. "
+                    f"Stocking adequate inventory and offering free home delivery drives ~35% repeat orders. "
+                    f"Shall I prepare a refill reminder broadcast for {m_name}?"
+                )
+                rationale = "Operational inventory and patient adherence notification for pharmacy repeat orders."
+                template_name = "vera_refill_merchant_alert_v1"
+                template_params = [salutation, mol_str, date_phrase]
+
             return ComposedMessage(
                 body=AntiHallucinationValidator.sanitize_message(body, category),
                 cta="binary_yes_no",
                 send_as=send_as,
                 suppression_key=suppression_key,
-                rationale="High-urgency chronic medication adherence reminder with zero-friction home delivery CTA.",
-                template_name="merchant_refill_reminder_v1",
-                template_params=[c_name, mol_str, date_phrase],
+                rationale=rationale,
+                template_name=template_name,
+                template_params=template_params,
             )
 
         # ---------------------------------------------------------------------
         # 6. APPOINTMENT TOMORROW (No-Show Prevention)
         # ---------------------------------------------------------------------
         elif t_kind in ("appointment_tomorrow", "appointment_reminder"):
-            salutation = get_customer_salutation(customer or {}, merchant)
             service = t_payload.get("service", "scheduled session")
             raw_time = t_payload.get("time_label") or t_payload.get("appointment_time") or "tomorrow at 11:00 AM"
-            
-            if "tomorrow" in str(raw_time).lower():
-                time_phrase = str(raw_time)
+            time_phrase = str(raw_time) if "tomorrow" in str(raw_time).lower() else f"tomorrow ({raw_time})"
+
+            if send_as == "merchant_on_behalf":
+                salutation = get_customer_salutation(customer or {}, merchant)
+                body = (
+                    f"{salutation} {CATEGORY_EMOJIS.get(cat_slug, '✨')} Friendly reminder for your {service} appointment "
+                    f"scheduled for {time_phrase} in {locality}. "
+                    f"Reply 1 to Confirm or 2 if you need to reschedule."
+                )
+                cta = "choice"
+                rationale = "Low-friction appointment confirmation to prevent no-shows."
+                template_name = "merchant_appointment_reminder_v1"
+                template_params = [c_name, service, time_phrase]
             else:
-                time_phrase = f"tomorrow ({raw_time})"
-            
-            body = (
-                f"{salutation} {CATEGORY_EMOJIS.get(cat_slug, '✨')} Friendly reminder for your {service} appointment "
-                f"scheduled for {time_phrase} in {locality}. "
-                f"Reply 1 to Confirm or 2 if you need to reschedule."
-            )
+                salutation = get_merchant_salutation(merchant, category)
+                body = (
+                    f"{salutation}, appointment schedule update: {m_name} has a {service} booked for {time_phrase}. "
+                    f"Would you like me to send a WhatsApp confirmation to the patient to prevent a no-show?"
+                )
+                cta = "binary_yes_no"
+                rationale = "Merchant appointment operational heads-up with 1-click no-show prevention outreach."
+                template_name = "vera_appointment_schedule_v1"
+                template_params = [salutation, service, time_phrase]
+
             return ComposedMessage(
                 body=AntiHallucinationValidator.sanitize_message(body, category),
-                cta="choice",
+                cta=cta,
                 send_as=send_as,
                 suppression_key=suppression_key,
-                rationale="Low-friction appointment confirmation to prevent no-shows.",
-                template_name="merchant_appointment_reminder_v1",
-                template_params=[c_name, service, time_phrase],
+                rationale=rationale,
+                template_name=template_name,
+                template_params=template_params,
             )
 
         # ---------------------------------------------------------------------
@@ -340,26 +381,42 @@ class MessageComposer:
         # 10. CUSTOMER LAPSED / WINBACK (Reactivation)
         # ---------------------------------------------------------------------
         elif t_kind in ("customer_lapsed_hard", "winback_customer", "customer_lapsed_soft"):
-            salutation = get_customer_salutation(customer or {}, merchant)
             days = t_payload.get("days_since_last_visit") or t_payload.get("days_lapsed", 45)
             focus_raw = t_payload.get("previous_focus", "wellness")
             focus = str(focus_raw).replace("_", " ")
             offer = get_active_offer_for_audience(merchant, category, "lapsed_user")
-            
-            body = (
-                f"{salutation} {CATEGORY_EMOJIS.get(cat_slug, '✨')} We missed seeing you at {m_name}! "
-                f"Ready to get back to your {focus} routine? "
-                f"We’ve reserved a special pass for you: {offer}. "
-                f"Reply 1 to book your preferred time this week!"
-            )
+
+            if send_as == "merchant_on_behalf":
+                salutation = get_customer_salutation(customer or {}, merchant)
+                body = (
+                    f"{salutation} {CATEGORY_EMOJIS.get(cat_slug, '✨')} We missed seeing you at {m_name}! "
+                    f"Ready to get back to your {focus} routine? "
+                    f"We’ve reserved a special pass for you: {offer}. "
+                    f"Reply 1 to book your preferred time this week!"
+                )
+                rationale = "Personalized winback leveraging past customer focus and specific reactivation offer."
+                template_name = "merchant_winback_v1"
+                template_params = [c_name, m_name, str(days), offer]
+            else:
+                salutation = get_merchant_salutation(merchant, category)
+                lapsed_count = t_payload.get("lapsed_count", 18)
+                body = (
+                    f"{salutation}, customer retention alert: {lapsed_count} customers haven't visited {m_name} in {days} days. "
+                    f"Running a targeted winback campaign featuring '{offer}' typically recovers 25%+ within a week. "
+                    f"Shall I draft and activate this winback campaign for {locality}?"
+                )
+                rationale = "Merchant-facing winback campaign recommendation based on customer aggregate lapse data."
+                template_name = "vera_lapsed_retention_v1"
+                template_params = [salutation, str(lapsed_count), str(days), offer]
+
             return ComposedMessage(
                 body=AntiHallucinationValidator.sanitize_message(body, category),
                 cta="binary_yes_no",
                 send_as=send_as,
                 suppression_key=suppression_key,
-                rationale="Personalized winback leveraging past customer focus and specific reactivation offer.",
-                template_name="merchant_winback_v1",
-                template_params=[c_name, m_name, str(days), offer],
+                rationale=rationale,
+                template_name=template_name,
+                template_params=template_params,
             )
 
         # ---------------------------------------------------------------------
@@ -535,8 +592,14 @@ class MessageComposer:
         # ---------------------------------------------------------------------
         elif t_kind in ("category_seasonal", "summer_demand_shift"):
             salutation = get_merchant_salutation(merchant, category)
-            trends = t_payload.get("trends", ["ORS demand +40%", "Sunscreen demand +38%"])
-            trend_str = ", ".join(trends[:3]).replace("_", " ")
+            raw_trends = t_payload.get("trends", ["ORS demand +40%", "Sunscreen demand +38%"])
+            formatted_trends = []
+            for t in raw_trends[:3]:
+                t_str = str(t).replace("_", " ").strip()
+                if re.search(r"[+-]\d+$", t_str):
+                    t_str += "%"
+                formatted_trends.append(t_str)
+            trend_str = ", ".join(formatted_trends)
             
             body = (
                 f"{salutation}, seasonal demand shift detected in {city}: {trend_str}. "
@@ -557,23 +620,38 @@ class MessageComposer:
         # 19. BRIDAL / WEDDING FOLLOWUP (Salon)
         # ---------------------------------------------------------------------
         elif t_kind in ("wedding_package_followup", "bridal_followup"):
-            salutation = get_customer_salutation(customer or {}, merchant)
             days_to_wedding = t_payload.get("days_to_wedding", 180)
-            
-            body = (
-                f"{salutation} 💍 {days_to_wedding} days to your big day! This is the ideal window to start "
-                f"your 30-day customized skin-prep program before bridal schedules get packed. "
-                f"Package covers 4 sessions + take-home care kit @ ₹2,499. "
-                f"Want me to reserve your preferred Saturday slot for session 1?"
-            )
+
+            if send_as == "merchant_on_behalf":
+                salutation = get_customer_salutation(customer or {}, merchant)
+                body = (
+                    f"{salutation} 💍 {days_to_wedding} days to your big day! This is the ideal window to start "
+                    f"your 30-day customized skin-prep program before bridal schedules get packed. "
+                    f"Package covers 4 sessions + take-home care kit @ ₹2,499. "
+                    f"Want me to reserve your preferred Saturday slot for session 1?"
+                )
+                rationale = "Relationship continuity honoring customer bridal milestone with structured skin-prep program."
+                template_name = "merchant_bridal_followup_v1"
+                template_params = [c_name, str(days_to_wedding)]
+            else:
+                salutation = get_merchant_salutation(merchant, category)
+                body = (
+                    f"{salutation}, bridal season surge alert: wedding season in {locality} peaks in ~{days_to_wedding} days. "
+                    f"Promoting a 4-session bridal skin-prep package @ ₹2,499 now captures high-margin bookings before salons get fully booked. "
+                    f"Want me to publish this bridal package to your Google profile?"
+                )
+                rationale = "Merchant bridal surge advisory with high-margin package draft."
+                template_name = "vera_bridal_season_alert_v1"
+                template_params = [salutation, str(days_to_wedding), locality]
+
             return ComposedMessage(
                 body=AntiHallucinationValidator.sanitize_message(body, category),
                 cta="binary_yes_no",
                 send_as=send_as,
                 suppression_key=suppression_key,
-                rationale="Relationship continuity honoring customer bridal milestone with structured skin-prep program.",
-                template_name="merchant_bridal_followup_v1",
-                template_params=[c_name, str(days_to_wedding)],
+                rationale=rationale,
+                template_name=template_name,
+                template_params=template_params,
             )
 
         # ---------------------------------------------------------------------

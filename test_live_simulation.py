@@ -9,7 +9,8 @@ import urllib.request
 import time
 
 
-SERVER_URL = "http://localhost:8080"
+import os
+SERVER_URL = os.environ.get("BOT_URL", "https://magicpin-vera-production.up.railway.app")
 
 
 def print_banner(title: str):

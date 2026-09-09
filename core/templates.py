@@ -50,7 +50,7 @@ def get_customer_salutation(customer: Dict[str, Any], merchant: Dict[str, Any]) 
     m_name = merchant.get("identity", {}).get("name", "our clinic")
     owner = merchant.get("identity", {}).get("owner_first_name")
     
-    if owner:
+    if owner and owner.lower() not in m_name.lower():
         return f"Hi {c_name}, {owner} from {m_name} here"
     return f"Hi {c_name}, {m_name} here"
 

@@ -43,6 +43,67 @@ class PersistentContextStore:
 
         # Restore from disk if snapshot exists
         self._load_from_disk()
+        # Ensure base dataset is seeded if context store is empty
+        if len(self.categories) < 5 or len(self.merchants) < 50:
+            self._seed_default_dataset()
+
+    def _seed_default_dataset(self):
+        """Preloads full base dataset from expanded/ if contexts are unpopulated."""
+        root = Path(__file__).parent.parent / "expanded"
+        if not root.exists():
+            return
+        try:
+            # 1. Categories
+            for f in (root / "categories").glob("*.json"):
+                try:
+                    with open(f, "r", encoding="utf-8") as fp:
+                        data = json.load(fp)
+                    slug = data.get("slug", f.stem)
+                    if slug not in self.categories:
+                        self.categories[slug] = data
+                        self.versions[f"category:{slug}"] = 1
+                except Exception:
+                    pass
+
+            # 2. Merchants
+            for f in (root / "merchants").glob("*.json"):
+                try:
+                    with open(f, "r", encoding="utf-8") as fp:
+                        data = json.load(fp)
+                    mid = data.get("merchant_id", f.stem)
+                    if mid not in self.merchants:
+                        self.merchants[mid] = data
+                        self.versions[f"merchant:{mid}"] = 1
+                except Exception:
+                    pass
+
+            # 3. Customers
+            for f in (root / "customers").glob("*.json"):
+                try:
+                    with open(f, "r", encoding="utf-8") as fp:
+                        data = json.load(fp)
+                    cid = data.get("customer_id", f.stem)
+                    if cid not in self.customers:
+                        self.customers[cid] = data
+                        self.versions[f"customer:{cid}"] = 1
+                except Exception:
+                    pass
+
+            # 4. Triggers
+            for f in (root / "triggers").glob("*.json"):
+                try:
+                    with open(f, "r", encoding="utf-8") as fp:
+                        data = json.load(fp)
+                    tid = data.get("id", f.stem)
+                    if tid not in self.triggers:
+                        self.triggers[tid] = data
+                        self.versions[f"trigger:{tid}"] = 1
+                except Exception:
+                    pass
+
+            self._rebuild_indices()
+        except Exception:
+            pass
 
     def _load_from_disk(self):
         """Restores in-memory state from disk snapshot if present."""

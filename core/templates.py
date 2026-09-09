@@ -45,11 +45,21 @@ def get_merchant_salutation(merchant: Dict[str, Any], category: Dict[str, Any]) 
 
 
 def get_customer_salutation(customer: Dict[str, Any], merchant: Dict[str, Any]) -> str:
-    """Produces customer salutation with business attribution."""
-    c_name = customer.get("identity", {}).get("name", "there")
+    """Produces customer salutation with business attribution, honoring respect norms & language."""
+    c_identity = customer.get("identity", {}) if customer else {}
+    c_name = c_identity.get("name", "there")
     m_name = merchant.get("identity", {}).get("name", "our clinic")
     owner = merchant.get("identity", {}).get("owner_first_name")
-    
+    c_lang = c_identity.get("language_pref", "").lower()
+
+    # Check for senior citizen or respect indicators
+    is_senior = any(s in c_name.lower() for s in ["sharma", "gupta", "uncle", "aunty", "mr.", "mrs.", "ji", "grandfather", "senior"]) or "hi" in c_lang
+
+    if is_senior and ("hi" in c_lang or "mr" in c_name.lower()):
+        if owner and owner.lower() not in m_name.lower():
+            return f"Namaste {c_name}, {owner} from {m_name} yahan"
+        return f"Namaste {c_name}, {m_name} yahan"
+
     if owner and owner.lower() not in m_name.lower():
         return f"Hi {c_name}, {owner} from {m_name} here"
     return f"Hi {c_name}, {m_name} here"

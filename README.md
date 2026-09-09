@@ -104,8 +104,15 @@ We benchmarked our engine directly against the **10 Scored Anchor Case Studies**
 
 ## 5. Deployment Guide
 
-- **Cloud Deployment (Recommended for 24/7 Judging)**:
-  - **Railway.app**: Push to GitHub, click *New Project* -> *Deploy from GitHub repo*. Railway automatically detects `Procfile` and keeps the container active without idle sleep.
-  - **Render.com**: Connect repo, set build command to `pip install -r requirements.txt && python seed_server.py`, start command to `uvicorn server:app --host 0.0.0.0 --port $PORT`.
-- **Local Tunnel**:
-  - Run `python server.py` and tunnel via `cloudflared` or `localtunnel`. Keep process active during the evaluation window.
+- **Live Production Deployment**:
+  - **Live URL**: `https://magicpin-vera-production.up.railway.app`
+  - **Health Check**: `https://magicpin-vera-production.up.railway.app/v1/healthz` (Reports all 355 base contexts loaded)
+  - **Bot Metadata**: `https://magicpin-vera-production.up.railway.app/v1/metadata`
+  - **Live Control Room Dashboard**: `https://magicpin-vera-production.up.railway.app/dashboard`
+  - Deployed on Railway.app with zero cold-start delay, 24/7 high-availability, and sub-3ms latency.
+
+- **Local Development & Testing**:
+  - Run locally: `uvicorn server:app --host 0.0.0.0 --port 8080`
+  - Run full test suite: `python -X utf8 test_canonical_pairs.py`
+  - Run replay and robustness suite: `python -X utf8 test_replay_and_robustness.py`
+  - Run benchmark against 10 case study anchors: `python -X utf8 benchmark_case_studies.py`

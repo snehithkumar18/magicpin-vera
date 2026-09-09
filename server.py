@@ -148,8 +148,12 @@ async def handle_tick(req: TickRequest):
         c_id = trigger.get("customer_id")
         customer = store.get_customer(c_id) if c_id else None
         
+        if c_id:
+            conv_id = f"conv_{c_id}_{trigger_id}"
+        else:
+            conv_id = f"conv_{m_id}_{trigger_id}"
+        
         composed = composer.compose(category, merchant, trigger, customer)
-        conv_id = f"conv_{uuid.uuid4().hex[:8]}"
         
         store.save_conversation(conv_id, {
             "conversation_id": conv_id,

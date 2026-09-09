@@ -138,6 +138,19 @@ class TestVeraServer(unittest.TestCase):
         self.assertEqual(resp_no.status_code, 200)
         self.assertEqual(resp_no.json()["action"], "end")
 
+    def test_05_dashboard_and_telemetry(self):
+        resp_dash = self.client.get("/")
+        self.assertEqual(resp_dash.status_code, 200)
+        self.assertIn("Interactive Judge Testing Console", resp_dash.text)
+        self.assertIn("Swagger /docs", resp_dash.text)
+
+        resp_telem = self.client.get("/v1/telemetry")
+        self.assertEqual(resp_telem.status_code, 200)
+        data = resp_telem.json()
+        self.assertIn("uptime", data)
+        self.assertIn("counts", data)
+        self.assertIn("events", data)
+
 
 if __name__ == "__main__":
     unittest.main()

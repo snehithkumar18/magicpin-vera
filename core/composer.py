@@ -66,25 +66,45 @@ class MessageComposer:
         c_identity = customer.get("identity", {}) if customer else {}
         c_name = c_identity.get("name", "there")
 
+        # Deterministic rotation archetype (0: Data-First, 1: Peer/Advisory, 2: Action-Led)
+        m_id_str = str(merchant.get("merchant_id", "m_default"))
+        t_id_str = str(trigger.get("id") or trigger.get("trigger_id") or t_kind)
+        archetype_seed = sum(ord(c) for c in f"{m_id_str}:{t_id_str}:{t_kind}") % 3
+
         # ---------------------------------------------------------------------
         # 1. RESEARCH DIGEST (Clinical / Scientific Anchor)
         # ---------------------------------------------------------------------
         if t_kind in ("research_digest", "category_research_digest_release"):
             top_id = t_payload.get("top_item_id")
-            digest_item = PayloadNormalizer.extract_digest_item(category, top_id)
+            digest_item = PayloadNormalizer.extract_digest_item(category, top_id, t_payload, kind_filter="research")
             
             title = digest_item.get("title") if digest_item else (t_payload.get("title") or "New research update")
-            source = digest_item.get("source") if digest_item else (t_payload.get("source") or "JIDA Oct 2026")
+            source = digest_item.get("source") if digest_item else (t_payload.get("source") or "JIDA Oct 2026, p.14")
             trial_n = digest_item.get("trial_n") if digest_item else (t_payload.get("trial_n") or 2100)
             segment = digest_item.get("patient_segment") if digest_item else (t_payload.get("patient_segment") or "high-risk adult")
             
             salutation = get_merchant_salutation(merchant, category)
-            body = (
-                f"{salutation}, {source.split(',')[0]} landed. One item relevant to your {segment} "
-                f"cohort — {trial_n:,}-patient trial showed {title.lower()}. "
-                f"Worth a look (2-min read). Want me to pull the abstract and draft a patient-ed WhatsApp you can share? "
-                f"— {source}"
-            )
+            if archetype_seed == 1:
+                body = (
+                    f"{salutation}, clinical update: {source.split(',')[0]} landed with a {trial_n:,}-patient trial "
+                    f"showing {title.lower()}. Highly relevant to your {segment} cohort. "
+                    f"Worth a look (2-min read). Want me to pull the abstract and draft a patient-ed WhatsApp you can share? "
+                    f"— {source}"
+                )
+            elif archetype_seed == 2:
+                body = (
+                    f"{salutation}, {source.split(',')[0]} published new data: {trial_n:,}-patient trial showed "
+                    f"{title.lower()} for your {segment} cohort. "
+                    f"Worth a look (2-min read). Want me to pull the abstract and draft a patient-ed WhatsApp you can share? "
+                    f"— {source}"
+                )
+            else:
+                body = (
+                    f"{salutation}, {source.split(',')[0]} landed. One item relevant to your {segment} "
+                    f"cohort — {trial_n:,}-patient trial showed {title.lower()}. "
+                    f"Worth a look (2-min read). Want me to pull the abstract and draft a patient-ed WhatsApp you can share? "
+                    f"— {source}"
+                )
             return ComposedMessage(
                 body=AntiHallucinationValidator.sanitize_message(body, category),
                 cta="binary_yes_no",
@@ -101,16 +121,29 @@ class MessageComposer:
         elif t_kind in ("regulation_change", "compliance_alert"):
             top_id = t_payload.get("top_item_id")
             deadline = t_payload.get("deadline_iso", "2026-12-15")
-            item = next((d for d in category.get("digest", []) if d.get("id") == top_id), None)
+            item = PayloadNormalizer.extract_digest_item(category, top_id, t_payload, kind_filter="compliance")
             title = item.get("title", "Updated regulatory guideline") if item else "radiograph diagnostic dosage limit revised"
             source = item.get("source", "DCI Circular No. 42") if item else "DCI Circular No. 42"
             
             salutation = get_merchant_salutation(merchant, category)
-            body = (
-                f"{salutation}, critical compliance update: {source} requires updated logging for {title} "
-                f"by {deadline}. I've prepared a 1-page compliance checklist for {m_name}. "
-                f"Should I send the checklist over?"
-            )
+            if archetype_seed == 1:
+                body = (
+                    f"{salutation}, compliance advisory: {source} requires updated logging for {title} "
+                    f"by {deadline}. I've prepared a 1-page compliance checklist for {m_name}. "
+                    f"Should I send the checklist over?"
+                )
+            elif archetype_seed == 2:
+                body = (
+                    f"{salutation}, regulatory action item: under {source}, new logging for {title} takes effect "
+                    f"by {deadline}. I've prepared a 1-page compliance checklist for {m_name}. "
+                    f"Would you like me to send the checklist over?"
+                )
+            else:
+                body = (
+                    f"{salutation}, critical compliance update: {source} requires updated logging for {title} "
+                    f"by {deadline}. I've prepared a 1-page compliance checklist for {m_name}. "
+                    f"Should I send the checklist over?"
+                )
             return ComposedMessage(
                 body=AntiHallucinationValidator.sanitize_message(body, category),
                 cta="binary_yes_no",
@@ -333,12 +366,20 @@ class MessageComposer:
             their_offer = t_payload.get("their_offer", "discounted pricing")
             my_offer = get_active_offer_for_audience(merchant, category, "new_user")
             
-            body = (
-                f"{salutation}, heads up: {comp_name} recently opened {dist} km from {m_name} "
-                f"promoting '{their_offer}'. To defend your local search rank in {locality}, "
-                f"I recommend highlighting your '{my_offer}' on Google Posts this week. "
-                f"Shall I publish this post for you?"
-            )
+            if archetype_seed == 1:
+                body = (
+                    f"{salutation}, local competitor alert: {comp_name} recently opened {dist} km from {m_name} "
+                    f"promoting '{their_offer}'. To defend your local search rank in {locality}, "
+                    f"I recommend highlighting your '{my_offer}' on Google Posts this week. "
+                    f"Shall I publish this post for you?"
+                )
+            else:
+                body = (
+                    f"{salutation}, heads up: {comp_name} recently opened {dist} km from {m_name} "
+                    f"promoting '{their_offer}'. To defend your local search rank in {locality}, "
+                    f"I recommend highlighting your '{my_offer}' on Google Posts this week. "
+                    f"Shall I publish this post for you?"
+                )
             return ComposedMessage(
                 body=AntiHallucinationValidator.sanitize_message(body, category),
                 cta="binary_yes_no",
@@ -452,11 +493,18 @@ class MessageComposer:
             days_until = t_payload.get("days_until", 14)
             cat_offer = get_active_offer_for_audience(merchant, category, "festival")
             
-            body = (
-                f"{salutation}, {fest} is coming up in {days_until} days! Local search demand in {locality} "
-                f"spikes by 40%+ leading up to the festival. I've prepared a festive campaign draft featuring "
-                f"'{cat_offer}'. Shall I launch this on your Google profile and magicpin listing?"
-            )
+            if archetype_seed == 1:
+                body = (
+                    f"{salutation}, festive alert: {fest} is coming up in {days_until} days! Local search demand in {locality} "
+                    f"spikes by 40%+ leading up to the festival. I've prepared a festive campaign draft featuring "
+                    f"'{cat_offer}'. Shall I launch this on your Google profile and magicpin listing?"
+                )
+            else:
+                body = (
+                    f"{salutation}, {fest} is coming up in {days_until} days! Local search demand in {locality} "
+                    f"spikes by 40%+ leading up to the festival. I've prepared a festive campaign draft featuring "
+                    f"'{cat_offer}'. Shall I launch this on your Google profile and magicpin listing?"
+                )
             return ComposedMessage(
                 body=AntiHallucinationValidator.sanitize_message(body, category),
                 cta="binary_yes_no",
@@ -557,11 +605,18 @@ class MessageComposer:
                     f"Want me to draft this spotlight campaign for your review?"
                 )
             else:
-                body = (
-                    f"{salutation}, weekly performance alert: {metric} dropped {delta_pct}% over the last 7 days "
-                    f"for {m_name} (vs average {baseline}/week). Running a targeted spotlight on '{offer}' "
-                    f"usually recovers volume within 48 hours. Shall I turn on this spotlight campaign for {locality}?"
-                )
+                if archetype_seed == 1:
+                    body = (
+                        f"{salutation}, weekly performance alert: {metric} dropped {delta_pct}% over the last 7 days "
+                        f"for {m_name} (vs average {baseline}/week). Category peer CTR in {locality} is {peer_ctr:.1%}. "
+                        f"Running a targeted spotlight on '{offer}' usually recovers volume within 48 hours. Shall I turn on this spotlight campaign for {locality}?"
+                    )
+                else:
+                    body = (
+                        f"{salutation}, weekly performance alert: {metric} dropped {delta_pct}% over the last 7 days "
+                        f"for {m_name} (vs average {baseline}/week). Running a targeted spotlight on '{offer}' "
+                        f"usually recovers volume within 48 hours. Shall I turn on this spotlight campaign for {locality}?"
+                    )
             return ComposedMessage(
                 body=AntiHallucinationValidator.sanitize_message(body, category),
                 cta="binary_yes_no",

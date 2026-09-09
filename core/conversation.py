@@ -34,7 +34,7 @@ class EnhancedConversationEngine:
 
     # 2. Hostile / Spam / Stop Messages (Immediate Graceful Exit)
     HOSTILE_PATTERNS = [
-        r"\b(?:stop messaging|spam|useless spam|harass|don't message|dont message|leave me alone|fuck|idiot|fraud|scam|abuse)\b",
+        r"\b(?:stop messaging|spam|useless spam|harass|don't message|dont message|leave me alone|fuck|idiot|fraud|scam|abuse|who gave you my number|do not contact|remove me|stop contacting|stop)\b",
     ]
 
     # 3. Off-Topic Scope Guard (GST, Accounting, Legal)
@@ -49,7 +49,7 @@ class EnhancedConversationEngine:
 
     # 5. Negative / Opt-Out
     NEGATIVE_PATTERNS = [
-        r"\b(?:no|nope|not interested|nahi|nah|stop|cancel|don't|dont|never|unsubscribe|band karo|mat bhejo)\b",
+        r"\b(?:no|nope|not interested|nahi|nah|cancel|don't|dont|never|unsubscribe|band karo|mat bhejo)\b",
     ]
 
     # 6. Delay / Busy
@@ -67,9 +67,9 @@ class EnhancedConversationEngine:
         r"\b(?:reschedule|change time|different time|saturday|sunday|evening|morning|dusra time|postpone|next week)\b",
     ]
 
-    # 9. Objections (Too expensive / not needed)
+    # 9. Objections (Too expensive / not needed / margin sensitivity)
     OBJECTION_PATTERNS = [
-        r"\b(?:expensive|costly|too high|budget|mehenga|jyada hai|discount do|kam karo)\b",
+        r"\b(?:expensive|costly|too high|budget|mehenga|jyada hai|discount do|kam karo|tight margin|margin|margins)\b",
     ]
 
     def is_auto_reply(self, message: str) -> bool:
@@ -101,7 +101,26 @@ class EnhancedConversationEngine:
         m_name = m_identity.get("name", "our clinic")
         locality = m_identity.get("locality", "your locality")
         cat_slug = merchant.get("category_slug", "dentists")
-        is_hindi = prefers_hindi(merchant)
+
+        # Dynamic language detection:
+        # 1. Inbound message contains Hindi markers -> Hindi/Hinglish
+        # 2. Inbound message is distinctly English -> English
+        # 3. Otherwise fallback to merchant/customer profile preference
+        msg_has_hindi = bool(re.search(
+            r"\b(?:namaste|haan|ha|bhai|theek|kardo|kar do|bhejo|bhej|nahi|mat|kal|parso|aaj|shukriya|kitna|kaise|kya|mehenga|sahi|bilkul|chalega|aap|tum|hum|yahan|wahan|dhanyawaad|kripya)\b",
+            msg_lower
+        ))
+        msg_is_english = bool(re.search(
+            r"\b(?:can you|instead of|margins? are tight|please|thank you|could you|what is|how much|let's|lets|we need|i want|send me)\b",
+            msg_lower
+        )) and not msg_has_hindi
+
+        if msg_has_hindi:
+            is_hindi = True
+        elif msg_is_english:
+            is_hindi = False
+        else:
+            is_hindi = prefers_hindi(merchant)
 
         conversation = context_store.get_conversation(conversation_id) or {}
         turns = conversation.get("turns", [])
@@ -238,19 +257,22 @@ class EnhancedConversationEngine:
             )
 
         # ---------------------------------------------------------------------
-        # 7. OBJECTION HANDLING (Too Expensive -> Pivot to Budget Entry Offer)
+        # 7. OBJECTION & PRICE HAGGLING (Too Expensive / Tight Margins -> Tiered Options)
         # ---------------------------------------------------------------------
-        for pattern in self.OBJECTION_PATTERNS:
-            if re.search(pattern, msg_lower):
-                if customer_id:
+        margin_match = bool(re.search(r"\b(?:margin|margins|tight|150|cheaper|discount|kam|haggling)\b", msg_lower))
+        if any(re.search(p, msg_lower) for p in self.OBJECTION_PATTERNS) or (margin_match and extracted_price):
+            target_p = extracted_price or "150"
+            higher_p = str(int(target_p) + 25) if target_p.isdigit() else "175"
+            if customer_id:
+                if is_hindi:
                     body = (
-                        f"Understood! We also offer our introductory consultation & basic checkup package "
-                        f"with zero upfront commitment. Reply YES to book that for you instead."
+                        f"Bilkul samajh gayi! Budget adjust karne ke liye hum introductory consultation & basic checkup "
+                        f"package offer kar sakte hain zero commitment ke sath. Reply YES to confirm!"
                     )
                 else:
                     body = (
-                        f"Completely understand! We can adjust the package to a lighter introductory offer "
-                        f"to maximize initial customer walk-ins in {locality}. Reply YES to prepare that draft."
+                        f"Understood! To fit your budget, we offer an introductory consultation & basic checkup package "
+                        f"with zero upfront commitment. Reply YES to book that for you instead."
                     )
                 return ReplyActionResponse(
                     action="send",
@@ -258,17 +280,43 @@ class EnhancedConversationEngine:
                     cta="binary_yes_no",
                     rationale="Constructive objection handling: acknowledged price sensitivity and presented low-friction entry alternative.",
                 )
+            else:
+                if is_hindi:
+                    body = (
+                        f"Margins ki baat bilkul valid hai! Hum tiered pricing structure offer kar sakte hain: "
+                        f"1️⃣ 20+ bookings ke liye ₹{target_p}/unit ya 2️⃣ 10 bookings ke liye ₹{higher_p}/unit. "
+                        f"Reply 1 ya 2 karke batayein jo aapke liye best fit ho!"
+                    )
+                else:
+                    body = (
+                        f"Understood on margins! We can structure tiered pricing to protect your profitability: "
+                        f"1️⃣ ₹{target_p}/unit for 20+ bookings, or 2️⃣ ₹{higher_p}/unit for 10 bookings. "
+                        f"Reply 1 or 2 to confirm which volume works best!"
+                    )
+                return ReplyActionResponse(
+                    action="send",
+                    body=body,
+                    cta="choice",
+                    rationale="Tiered price negotiation: protected merchant margins while converting price objection with structured volume choices.",
+                )
 
         # ---------------------------------------------------------------------
         # 8. RESCHEDULING / SLOT PREFERENCES
         # ---------------------------------------------------------------------
         for pattern in self.RESCHEDULE_PATTERNS:
             if re.search(pattern, msg_lower):
-                body = (
-                    f"No problem! We've marked your timing preference for {m_name}. "
-                    f"Our coordinator will confirm the updated slot with you right away. "
-                    f"Reply YES for an instant WhatsApp calendar invite."
-                )
+                if is_hindi:
+                    body = (
+                        f"Zaroor! Humne {m_name} ke liye aapka updated timing preference note kar liya hai. "
+                        f"Front desk coordinator turant naye slot ka confirmation WhatsApp bhej dega. "
+                        f"Instant confirmation ke liye reply YES karein!"
+                    )
+                else:
+                    body = (
+                        f"No problem! We've marked your timing preference for {m_name}. "
+                        f"Our coordinator will confirm the updated slot with you right away. "
+                        f"Reply YES for an instant WhatsApp calendar invite."
+                    )
                 return ReplyActionResponse(
                     action="send",
                     body=body,
@@ -284,10 +332,16 @@ class EnhancedConversationEngine:
                 active_offers = [o.get("title") for o in merchant.get("offers", []) if o.get("status") == "active"]
                 offer_text = active_offers[0] if active_offers else "Transparent, standardized rates"
                 
-                body = (
-                    f"Happy to clarify! At {m_name}, pricing starts with '{offer_text}' with 100% transparent "
-                    f"billing and no hidden charges. Reply YES to receive the complete service menu & booking link."
-                )
+                if is_hindi:
+                    body = (
+                        f"Khushi se batati hoon! {m_name} mein packages '{offer_text}' se shuru hote hain "
+                        f"100% transparent billing ke sath (zero hidden charges). Complete rate card aur booking link ke liye reply YES karein!"
+                    )
+                else:
+                    body = (
+                        f"Happy to clarify! At {m_name}, pricing starts with '{offer_text}' with 100% transparent "
+                        f"billing and no hidden charges. Reply YES to receive the complete service menu & booking link."
+                    )
                 return ReplyActionResponse(
                     action="send",
                     body=body,

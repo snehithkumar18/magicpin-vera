@@ -117,18 +117,63 @@ class PayloadNormalizer:
         return normalized
 
     @classmethod
-    def extract_digest_item(cls, category: Dict[str, Any], top_item_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def extract_digest_item(
+        cls,
+        category: Dict[str, Any],
+        top_item_id: Optional[str] = None,
+        payload: Optional[Dict[str, Any]] = None,
+        kind_filter: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
         """
-        Finds the matching digest item from CategoryContext, or the latest injected research item.
+        Dynamically locates the optimal digest item from CategoryContext.
+        Uses exact ID match if found, else token-overlap relevance ranking against
+        trigger payload keywords/title/source, with kind filtering (e.g. 'research', 'compliance').
         """
         digest_list = category.get("digest", [])
         if not digest_list:
             return None
 
+        # 1. Exact ID match
         if top_item_id:
             for item in digest_list:
                 if item.get("id") == top_item_id:
                     return item
 
-        # If top_item_id not found or not provided, return the most recent research/compliance item
+        # 2. Token overlap / keyword ranking against payload
+        query_text = ""
+        if payload:
+            for k in ("title", "paper_title", "headline", "topic", "source", "patient_segment", "summary", "finding", "intent_topic"):
+                v = payload.get(k)
+                if isinstance(v, str):
+                    query_text += " " + v.lower()
+
+        tokens = set(re.findall(r"\w{3,}", query_text))
+        if tokens:
+            best_item = None
+            best_score = -1
+            for item in digest_list:
+                if kind_filter and item.get("kind") != kind_filter:
+                    continue
+                item_text = " ".join([
+                    str(item.get("title", "")),
+                    str(item.get("source", "")),
+                    str(item.get("summary", "")),
+                    str(item.get("patient_segment", "")),
+                    str(item.get("id", ""))
+                ]).lower()
+                score = sum(1 for tok in tokens if tok in item_text)
+                if score > best_score:
+                    best_score = score
+                    best_item = item
+            if best_item and best_score > 0:
+                return best_item
+
+        # 3. Filter by kind if specified
+        if kind_filter:
+            for item in digest_list:
+                if item.get("kind") == kind_filter:
+                    return item
+
+        # 4. Fallback to first item
         return digest_list[0] if digest_list else None
+

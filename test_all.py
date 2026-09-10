@@ -40,7 +40,7 @@ def run_command_suite(name: str, cmd: list[str]) -> tuple[bool, str]:
 def main():
     print("=" * 80)
     print("   VERA MESSAGE ENGINE — MASTER TEST & VERIFICATION HARNESS")
-    print("   Author: Snehith Barkam (snehithbarkam@gmil.com)")
+    print("   Author: Snehith Barkam (snehithbarkam@gmail.com)")
     print("=" * 80)
 
     suites = [

@@ -252,6 +252,6 @@ When building for high-stakes merchant growth under real-time constraints, great
 
 ## 9. Author & Verification
 
-- **Author**: Snehith Barkam (`snehithbarkam@gmil.com`)
+- **Author**: Snehith Barkam (`snehithbarkam@gmail.com`)
 - **Challenge**: magicpin AI Challenge — Vera Message Composition & Replay Engine
 - **License**: Proprietary / Evaluation License for magicpin Evaluation Rig

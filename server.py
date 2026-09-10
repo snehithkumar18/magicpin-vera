@@ -28,7 +28,7 @@ app = FastAPI(
     title="magicpin Vera Message Engine",
     description="""
 ### Ultra-High Precision 4-Context Message Composition & Conversational State Machine
-**Team / Author**: Snehith Barkam (`snehithbarkam@gmil.com`)  
+**Team / Author**: Snehith Barkam (`snehithbarkam@gmail.com`)  
 **Architecture**: Deterministic fast-path compiler + in-memory BM25 relevance engine + WhatsApp dialogue state machine  
 **Performance**: < 3ms Latency | 0.0% Hallucination Rate | 100% Category Taboo Compliance
     """,
@@ -342,7 +342,7 @@ async def metadata():
         "team_members": ["Snehith Barkam"],
         "model": "deterministic-grounded-composer-v1",
         "approach": "Zero-hallucination dual engine with instant intent handoffs and sub-millisecond WA auto-reply filtering",
-        "contact_email": "snehithbarkam@gmil.com",
+        "contact_email": "snehithbarkam@gmail.com",
         "version": "1.2.0",
         "submitted_at": utc_now_iso(),
     }

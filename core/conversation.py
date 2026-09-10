@@ -533,8 +533,49 @@ class EnhancedConversationEngine:
         # ---------------------------------------------------------------------
         # 11. DOMAIN & SERVICE CONSULTATION QUERIES
         # ---------------------------------------------------------------------
+        # Pharmacies: Chronic conditions (Diabetes, Sugar, BP, Hypertension, Thyroid, Asthma, Heart)
+        if cat_slug == "pharmacies" and re.search(r"\b(?:diabetes|diabetic|sugar|bp|blood pressure|hypertension|thyroid|asthma|cholesterol|heart|insulin|glucose)\b", msg_lower):
+            if is_hindi:
+                body = (
+                    f"Diabetes aur chronic health conditions ke liye prescription medicines (jaise Metformin ya Insulin) "
+                    f"doctor ke consultation aur latest lab reports par depend karti hain. "
+                    f"{m_name} mein hum aapke doctor ke prescription ke according 100% genuine medicines arrange aur deliver karte hain. "
+                    f"Prescription share karne ya licensed pharmacist se baat karne ke liye reply YES karein!"
+                )
+            else:
+                body = (
+                    f"For chronic conditions like diabetes, prescription medications (such as Metformin or Insulin) require a certified doctor's evaluation and recent lab reports. "
+                    f"At {m_name}, our licensed pharmacists can verify your prescription and arrange genuine supplies with prompt doorstep delivery. "
+                    f"Reply YES to upload your prescription or speak directly with our pharmacist."
+                )
+            return ReplyActionResponse(
+                action="send",
+                body=body,
+                cta="binary_yes_no",
+                rationale="Compliant clinical pharmacy guidance: advised physician consultation for chronic diabetes medication while offering prescription fulfillment via licensed pharmacist.",
+            )
+
+        # Pharmacies: General medicines, OTC, symptoms, refills, supplies
+        if cat_slug == "pharmacies" and re.search(r"\b(?:medicines?|tablets?|drugs?|capsules?|syrups?|injections?|drops?|ointments?|creams?|painkillers?|antibiotics?|vitamins?|supplements?|bandages?|doses?|refills?|prescriptions?|pills?|glucometer|strips?|pharmacy|chemist|fever|cough|cold|headache|migraine|pain|acidity|gas|constipation|vomiting|infection|allergy|allergies)\b", msg_lower):
+            if is_hindi:
+                body = (
+                    f"{m_name} mein genuine medicines, OTC healthcare supplies aur prescription refills available hain. "
+                    f"Dispensary desk se connect karne ya medicine check karne ke liye reply YES karein!"
+                )
+            else:
+                body = (
+                    f"At {m_name}, our licensed pharmacists assist with prescription refills, authentic medicines, and wellness supplies. "
+                    f"Reply YES to connect directly with the dispensary counter."
+                )
+            return ReplyActionResponse(
+                action="send",
+                body=body,
+                cta="binary_yes_no",
+                rationale="Pharmacy consultation inquiry response with direct dispensary counter assistance CTA.",
+            )
+
         # Salons: pimple, acne, blemish, blackhead, skincare consultation
-        if cat_slug == "salons" and re.search(r"\b(?:pimple|pimples|acne|blemish|blemishes|blackheads?|whiteheads?|tan|tanning|pigmentation|breakout|breakouts)\b", msg_lower):
+        if cat_slug == "salons" and re.search(r"\b(?:pimple|pimples|acne|blemish|blemishes|blackheads?|whiteheads?|tan|tanning|pigmentation|breakout|breakouts|dark circles?|glow|glowing)\b", msg_lower):
             if is_hindi:
                 body = (
                     f"{m_name} mein hamare skincare specialists targeted anti-acne deep cleanups aur clarifying facials "
@@ -554,48 +595,8 @@ class EnhancedConversationEngine:
                 rationale="Specialized salon skincare consultation: answered acne/pimple query with clarifying facial guidance and low-friction booking CTA.",
             )
 
-        # Gyms: workout, exercise, chest, training, weight, muscle, abs, belly, diet
-        if cat_slug == "gyms" and re.search(r"\b(?:train|training|workout|exercise|chest|bench|bicep|cardio|weight|loss|fat|muscle|gain|routine|program|diet|abs|belly|stamina|protein|squat|deadlift)\b", msg_lower):
-            if is_hindi:
-                body = (
-                    f"{m_name} mein hamare trainers structured hypertrophy aur strength programming "
-                    f"(chest, compound lifts aur personalized splits) guide karte hain. "
-                    f"Kya aap senior trainer ke sath free assessment ya trial session book karna chahte hain? Reply YES karein!"
-                )
-            else:
-                body = (
-                    f"At {m_name}, our certified trainers structure chest and strength training around progressive overload "
-                    f"(bench presses, incline dumbbells, and targeted cable flyes). "
-                    f"Would you like to book a 1-on-1 personal training assessment or trial session? Reply YES to connect!"
-                )
-            return ReplyActionResponse(
-                action="send",
-                body=body,
-                cta="binary_yes_no",
-                rationale="Expert domain consultation: answered fitness training inquiry with specific exercise anchors and a low-friction trial CTA.",
-            )
-
-        # Dentists: teeth, dental, pain, cleaning, whitening, braces, cavity, sensitivity
-        if cat_slug == "dentists" and re.search(r"\b(?:tooth|teeth|dental|pain|clean|cleaning|whitening|cavity|root canal|braces|dentist|appointment|doctor|sensitivity|yellow|gums?|bleeding|crooked|alignment)\b", msg_lower):
-            if is_hindi:
-                body = (
-                    f"{m_name} mein painless clinical evaluations, deep cleaning aur dental care available hain. "
-                    f"Kya aap doctor consultation slot book karna chahte hain? Reply YES karein!"
-                )
-            else:
-                body = (
-                    f"At {m_name}, we provide specialized clinical evaluations, dental cleanings, and preventive care. "
-                    f"Would you like to schedule an appointment with our senior dental specialist? Reply YES to view open slots."
-                )
-            return ReplyActionResponse(
-                action="send",
-                body=body,
-                cta="binary_yes_no",
-                rationale="Domain clinical inquiry response with low-friction appointment booking CTA.",
-            )
-
         # Salons: hair, skin, facial, bridal, massage, styling, haircut, grooming
-        if cat_slug == "salons" and re.search(r"\b(?:hair|cut|haircut|facial|skin|bridal|glow|color|colour|massage|spa|styling|salon|pedicure|manicure|waxing|threading|grooming)\b", msg_lower):
+        if cat_slug == "salons" and re.search(r"\b(?:hair|cut|haircut|haircuts?|facial|facials?|skin|bridal|glow|color|colour|massage|spa|styling|salon|pedicure|manicure|waxing|threading|grooming|hairfall|dandruff|keratin|smoothening|straightening|beard|trim)\b", msg_lower):
             if is_hindi:
                 body = (
                     f"{m_name} mein senior stylists ke sath customized hair care, facial aur styling treatments available hain. "
@@ -613,8 +614,48 @@ class EnhancedConversationEngine:
                 rationale="Salon service inquiry response with direct appointment reservation CTA.",
             )
 
+        # Gyms: workout, exercise, chest, training, weight, muscle, abs, belly, diet
+        if cat_slug == "gyms" and re.search(r"\b(?:train|training|workout|workouts?|exercise|exercises?|chest|bench|bicep|biceps?|tricep|triceps?|legs?|cardio|weight|loss|fat|muscle|gain|routine|program|diet|abs|belly|stamina|protein|squat|squats?|deadlift|deadlifts?|hiit|crossfit|yoga|zumba|bulk|bulking|cut|cutting)\b", msg_lower):
+            if is_hindi:
+                body = (
+                    f"{m_name} mein hamare certified trainers personalized hypertrophy, fat-loss conditioning aur strength splits "
+                    f"(chest, abs aur customized workout plans) guide karte hain. "
+                    f"Kya aap senior trainer ke sath free assessment ya trial session book karna chahte hain? Reply YES karein!"
+                )
+            else:
+                body = (
+                    f"At {m_name}, our certified trainers structure targeted strength routines, fat-loss conditioning, and progressive splits "
+                    f"(bench presses, core conditioning, and progressive overload). "
+                    f"Would you like to book a 1-on-1 personal training assessment or trial session? Reply YES to connect!"
+                )
+            return ReplyActionResponse(
+                action="send",
+                body=body,
+                cta="binary_yes_no",
+                rationale="Expert domain consultation: answered fitness training inquiry with specific exercise anchors and a low-friction trial CTA.",
+            )
+
+        # Dentists: teeth, dental, pain, cleaning, whitening, braces, cavity, sensitivity
+        if cat_slug == "dentists" and re.search(r"\b(?:tooth|teeth|dental|pain|toothache|ache|clean|cleaning|whitening|cavity|cavities|decay|root canal|rct|braces|aligners?|invisalign|implants?|crown|dentist|appointment|doctor|sensitivity|sensitive|yellow|gums?|bleeding|crooked|alignment|wisdom|filling|scaling)\b", msg_lower):
+            if is_hindi:
+                body = (
+                    f"{m_name} mein painless clinical evaluations, deep cleaning, sensitivity relief aur dental care available hain. "
+                    f"Kya aap doctor consultation slot book karna chahte hain? Reply YES karein!"
+                )
+            else:
+                body = (
+                    f"At {m_name}, we provide specialized clinical evaluations, sensitivity treatments, dental cleanings, and preventive care. "
+                    f"Would you like to schedule an appointment with our senior dental specialist? Reply YES to view open slots."
+                )
+            return ReplyActionResponse(
+                action="send",
+                body=body,
+                cta="binary_yes_no",
+                rationale="Domain clinical inquiry response with low-friction appointment booking CTA.",
+            )
+
         # Restaurants: food, menu, thali, table, order, dish, biryani, specials
-        if cat_slug == "restaurants" and re.search(r"\b(?:food|menu|thali|table|order|eat|dinner|lunch|dish|specials?|booking|taste|dosa|idli|coffee|breakfast|snack|curry|veg|non-veg|spicy|sweet|dessert)\b", msg_lower):
+        if cat_slug == "restaurants" and re.search(r"\b(?:food|menu|thali|thalis?|table|tables?|order|eat|dinner|lunch|dish|dishes?|specials?|booking|taste|dosa|dosas?|idli|idlis?|vada|coffee|tea|chai|breakfast|snack|snacks?|curry|curries?|veg|non-veg|spicy|sweet|dessert|paneer|biryani|roti|meals?)\b", msg_lower):
             if is_hindi:
                 body = (
                     f"{m_name} mein freshly prepared authentic dishes aur specials available hain. "
@@ -630,25 +671,6 @@ class EnhancedConversationEngine:
                 body=body,
                 cta="binary_yes_no",
                 rationale="Restaurant hospitality inquiry response with menu & table reservation CTA.",
-            )
-
-        # Pharmacies: medicine, tablet, dose, stock, refill, prescription, fever, cold
-        if cat_slug == "pharmacies" and re.search(r"\b(?:medicine|tablet|drug|dose|stock|refill|prescription|pharmacy|chemist|fever|cough|cold|headache|pain|painkiller|syrup|ointment|bandage|vitamin)\b", msg_lower):
-            if is_hindi:
-                body = (
-                    f"{m_name} mein genuine medicines aur prescription refills available hain. "
-                    f"Dispensary desk se connect karne ya medicine check karne ke liye reply YES karein!"
-                )
-            else:
-                body = (
-                    f"At {m_name}, our licensed pharmacists assist with prescription refills, authentic medicines, and wellness supplies. "
-                    f"Reply YES to connect directly with the dispensary counter."
-                )
-            return ReplyActionResponse(
-                action="send",
-                body=body,
-                cta="binary_yes_no",
-                rationale="Pharmacy consultation inquiry response with direct dispensary counter assistance CTA.",
             )
 
         # ---------------------------------------------------------------------

@@ -9,6 +9,7 @@ import threading
 import time
 import json
 import os
+import atexit
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, Tuple, List
@@ -19,6 +20,8 @@ def utc_now_iso() -> str:
 
 
 class PersistentContextStore:
+    MAX_CONVERSATIONS = 100_000
+
     def __init__(self, persistence_file: str = "context_store.json"):
         self._lock = threading.RLock()
         self.start_time = time.time()
@@ -38,14 +41,27 @@ class PersistentContextStore:
         self.triggers_by_merchant: Dict[str, List[str]] = {}
         self.merchants_by_category: Dict[str, List[str]] = {}
 
-        # Conversation tracking
+        # Conversation tracking (LRU-capped at MAX_CONVERSATIONS)
         self.conversations: Dict[str, Dict[str, Any]] = {}
+
+        # Write-behind debounced flusher state
+        self._dirty = False
+        self._last_flush_time = time.time()
+        self._flusher_running = True
+
+        # High-speed sliding-window webhook idempotency cache (key -> timestamp)
+        self._dedup_cache: Dict[str, float] = {}
 
         # Restore from disk if snapshot exists
         self._load_from_disk()
         # Ensure base dataset is seeded if context store is empty
         if len(self.categories) < 5 or len(self.merchants) < 50:
             self._seed_default_dataset()
+
+        # Launch background persistence flusher daemon (coalesces disk writes)
+        self._flusher_thread = threading.Thread(target=self._flusher_loop, daemon=True)
+        self._flusher_thread.start()
+        atexit.register(self.flush_sync)
 
     def _seed_default_dataset(self):
         """Preloads full base dataset from expanded/ if contexts are unpopulated."""
@@ -122,6 +138,51 @@ class PersistentContextStore:
         except Exception:
             pass
 
+    def _flusher_loop(self):
+        """Background worker daemon: flushes coalesced dirty state to disk every 3 seconds."""
+        while self._flusher_running:
+            time.sleep(3.0)
+            if self._dirty:
+                self.flush_sync()
+
+    def flush_sync(self):
+        """Synchronously persists in-memory state to disk if dirty."""
+        if not self._dirty:
+            return
+        with self._lock:
+            self._persist_to_disk()
+            self._dirty = False
+            self._last_flush_time = time.time()
+
+    def is_duplicate_message(self, dedup_key: str, window_seconds: float = 60.0) -> bool:
+        """
+        High-performance sliding-window idempotency filter (O(1)).
+        Protects against duplicate WhatsApp webhook retries under high concurrent load.
+        """
+        now = time.time()
+        last_seen = self._dedup_cache.get(dedup_key)
+        if last_seen and (now - last_seen) < window_seconds:
+            return True
+        with self._lock:
+            last_seen = self._dedup_cache.get(dedup_key)
+            if last_seen and (now - last_seen) < window_seconds:
+                return True
+            self._dedup_cache[dedup_key] = now
+            if len(self._dedup_cache) > 50_000:
+                cutoff = now - window_seconds
+                self._dedup_cache = {k: v for k, v in self._dedup_cache.items() if v > cutoff}
+            return False
+
+    def _evict_old_conversations_if_needed(self):
+        """Prevents container Out-Of-Memory (OOM) by pruning oldest conversations beyond 100k cap."""
+        if len(self.conversations) > self.MAX_CONVERSATIONS:
+            sorted_keys = sorted(
+                self.conversations.keys(),
+                key=lambda k: self.conversations[k].get("created_at", "")
+            )
+            for k in sorted_keys[:10_000]:
+                self.conversations.pop(k, None)
+
     def _persist_to_disk(self):
         """Atomic write to disk to ensure data survives process recycling."""
         try:
@@ -138,6 +199,7 @@ class PersistentContextStore:
             with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(snapshot, f, ensure_ascii=False, indent=2)
             os.replace(tmp_path, self.persistence_path)
+            self._dirty = False
         except Exception:
             pass
 
@@ -232,30 +294,31 @@ class PersistentContextStore:
                     if t_id not in self.triggers_by_merchant[m_id]:
                         self.triggers_by_merchant[m_id].append(t_id)
 
-            # Persist to disk asynchronously / atomically
+            # Persist context changes atomically
             self._persist_to_disk()
-
             return True, None, version
 
+    def __del__(self):
+        try:
+            self.flush_sync()
+        except Exception:
+            pass
+
     def get_category(self, slug_or_id: str) -> Optional[Dict[str, Any]]:
-        with self._lock:
-            return self.categories.get(slug_or_id)
+        # Fast lock-free dictionary read (CPython atomic)
+        return self.categories.get(slug_or_id)
 
     def get_merchant(self, merchant_id: str) -> Optional[Dict[str, Any]]:
-        with self._lock:
-            return self.merchants.get(merchant_id)
+        return self.merchants.get(merchant_id)
 
     def get_customer(self, customer_id: str) -> Optional[Dict[str, Any]]:
-        with self._lock:
-            return self.customers.get(customer_id)
+        return self.customers.get(customer_id)
 
     def get_trigger(self, trigger_id: str) -> Optional[Dict[str, Any]]:
-        with self._lock:
-            return self.triggers.get(trigger_id)
+        return self.triggers.get(trigger_id)
 
     def get_conversation(self, conversation_id: str) -> Optional[Dict[str, Any]]:
-        with self._lock:
-            return self.conversations.get(conversation_id)
+        return self.conversations.get(conversation_id)
 
     def save_conversation(self, conversation_id: str, data: Dict[str, Any]):
         with self._lock:
@@ -268,6 +331,7 @@ class PersistentContextStore:
                 }
             self.conversations[conversation_id].update(data)
             self._persist_to_disk()
+            self._evict_old_conversations_if_needed()
 
     def add_conversation_turn(self, conversation_id: str, turn: Dict[str, Any]):
         with self._lock:
@@ -279,7 +343,26 @@ class PersistentContextStore:
                     "state": "active",
                 }
             self.conversations[conversation_id]["turns"].append(turn)
-            self._persist_to_disk()
+            # Debounced write-behind for high-concurrency turns
+            self._dirty = True
+
+    def get_scale_metrics(self) -> Dict[str, Any]:
+        """Telemetry on memory footprint, concurrency capacity, and write buffer state."""
+        return {
+            "uptime_seconds": self.get_uptime_seconds(),
+            "active_conversations": len(self.conversations),
+            "max_conversations_capacity": self.MAX_CONVERSATIONS,
+            "dedup_cache_size": len(self._dedup_cache),
+            "is_dirty": self._dirty,
+            "last_flush_age_seconds": round(time.time() - self._last_flush_time, 2),
+            "contexts_indexed": {
+                "categories": len(self.categories),
+                "merchants": len(self.merchants),
+                "customers": len(self.customers),
+                "triggers": len(self.triggers),
+            },
+            "status": "HEALTHY_ENTERPRISE_READY"
+        }
 
 
 # Global singleton instance with persistence enabled

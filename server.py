@@ -6,6 +6,7 @@ Exposes the 5 required judging endpoints + live real-time visual telemetry dashb
 from __future__ import annotations
 import uuid
 import time
+from collections import deque
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Literal
 
@@ -52,8 +53,8 @@ async def add_no_cache_headers(request: Request, call_next):
     response.headers["Expires"] = "0"
     return response
 
-# Global telemetry log
-recent_events: List[Dict[str, Any]] = []
+# High-speed lock-free O(1) circular telemetry buffer
+recent_events: deque = deque(maxlen=100)
 
 
 # =============================================================================
@@ -156,8 +157,8 @@ async def push_context(req: ContextPushRequest):
     ack_id = f"ack_{uuid.uuid4().hex[:8]}"
     duration_ms = round((time.time() - t0) * 1000, 2)
     
-    # Telemetry logging
-    recent_events.insert(0, {
+    # Telemetry logging (O(1) circular ring buffer)
+    recent_events.appendleft({
         "ts": datetime.now(timezone.utc).strftime("%H:%M:%S"),
         "type": "CONTEXT_PUSH",
         "scope": req.scope,
@@ -165,8 +166,6 @@ async def push_context(req: ContextPushRequest):
         "version": req.version,
         "latency_ms": duration_ms
     })
-    if len(recent_events) > 50:
-        recent_events.pop()
 
     return {
         "accepted": True,
@@ -231,7 +230,7 @@ async def handle_tick(req: TickRequest):
         })
 
         # Telemetry
-        recent_events.insert(0, {
+        recent_events.appendleft({
             "ts": datetime.now(timezone.utc).strftime("%H:%M:%S"),
             "type": "TICK_ACTION",
             "merchant": m_id,
@@ -239,8 +238,6 @@ async def handle_tick(req: TickRequest):
             "cta": composed.cta,
             "body_snippet": composed.body[:70] + "..."
         })
-        if len(recent_events) > 50:
-            recent_events.pop()
         
     return {"actions": actions}
 
@@ -272,7 +269,7 @@ async def handle_reply(req: ReplyRequest):
     })
 
     # Telemetry
-    recent_events.insert(0, {
+    recent_events.appendleft({
         "ts": datetime.now(timezone.utc).strftime("%H:%M:%S"),
         "type": "REPLY_TURN",
         "turn": req.turn_number,
@@ -280,8 +277,6 @@ async def handle_reply(req: ReplyRequest):
         "inbound": req.message[:50],
         "rationale": response.rationale[:60] + "..."
     })
-    if len(recent_events) > 50:
-        recent_events.pop()
     
     return response.model_dump(exclude_none=True)
 
@@ -325,8 +320,17 @@ async def get_telemetry():
     return {
         "uptime": store.get_uptime_seconds(),
         "counts": store.get_counts(),
-        "events": recent_events[:25],
+        "events": list(recent_events)[:25],
     }
+
+
+# =============================================================================
+# 7. GET /v1/scale/metrics — HIGH-CONCURRENCY SCALE METRICS
+# =============================================================================
+
+@app.get("/v1/scale/metrics")
+async def get_scale_metrics():
+    return store.get_scale_metrics()
 
 
 # =============================================================================
@@ -340,7 +344,7 @@ async def dashboard():
     uptime = store.get_uptime_seconds()
     
     events_html = ""
-    for ev in recent_events[:15]:
+    for ev in list(recent_events)[:15]:
         ev_type = ev.get("type", "EVENT")
         color = "#58a6ff" if "PUSH" in ev_type else ("#3fb950" if "TICK" in ev_type else "#f0883e")
         detail = ev.get("body_snippet") or ev.get("rationale") or f"{ev.get('scope')}: {ev.get('id')}"

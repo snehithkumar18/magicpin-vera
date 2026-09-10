@@ -334,7 +334,7 @@ class EnhancedConversationEngine:
                 
                 if is_hindi:
                     body = (
-                        f"Khushi se batati hoon! {m_name} mein packages '{offer_text}' se shuru hote hain "
+                        f"Khushi se batati hoon! {m_name} mein pricing '{offer_text}' se shuru hoti hai "
                         f"100% transparent billing ke sath (zero hidden charges). Complete rate card aur booking link ke liye reply YES karein!"
                     )
                 else:

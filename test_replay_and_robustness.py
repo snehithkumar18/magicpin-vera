@@ -6,8 +6,13 @@ Comprehensive Automated Test Suite for:
 4. Hostile / GST Out-of-Scope Guard (Challenge Replay Scenario 3)
 """
 
+import sys
 import json
 from pathlib import Path
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 from bot import compose
 from core.conversation import conversation_engine
 from core.store import store

@@ -46,8 +46,13 @@ app.add_middleware(
 )
 
 @app.middleware("http")
-async def add_no_cache_headers(request: Request, call_next):
+async def add_enterprise_headers(request: Request, call_next):
+    trace_id = request.headers.get("X-Trace-ID") or f"trc_{uuid.uuid4().hex[:12]}"
+    t_start = time.perf_counter()
     response = await call_next(request)
+    duration_ms = (time.perf_counter() - t_start) * 1000.0
+    response.headers["X-Trace-ID"] = trace_id
+    response.headers["X-Response-Time-Ms"] = f"{duration_ms:.2f}"
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
@@ -249,6 +254,20 @@ async def handle_tick(req: TickRequest):
 @app.post("/v1/reply")
 async def handle_reply(req: ReplyRequest):
     t0 = time.time()
+    
+    # 1. High-Speed Webhook Deduplication Filter (Protects against retry storms)
+    dedup_key = f"{req.conversation_id}_{req.turn_number}_{hash(req.message)}"
+    if store.is_duplicate_message(dedup_key):
+        conv = store.get_conversation(req.conversation_id)
+        if conv and conv.get("turns"):
+            last_turn = conv["turns"][-1]
+            return {
+                "action": last_turn.get("response_action", "send"),
+                "body": last_turn.get("response_body"),
+                "cta": "open_ended",
+                "rationale": "Idempotent response: duplicate webhook retry filtered without re-processing."
+            }
+
     response = conversation_engine.handle_reply(
         conversation_id=req.conversation_id,
         merchant_id=req.merchant_id,
@@ -291,6 +310,24 @@ async def healthz():
         "status": "ok",
         "uptime_seconds": store.get_uptime_seconds(),
         "contexts_loaded": store.get_counts(),
+    }
+
+
+# =============================================================================
+# 4B. GET /v1/readyz — KUBERNETES ENTERPRISE READINESS PROBE
+# =============================================================================
+
+@app.get("/v1/readyz")
+async def readyz():
+    counts = store.get_counts()
+    is_ready = counts.get("category", 0) >= 5 and counts.get("merchant", 0) >= 50
+    if not is_ready:
+        return JSONResponse(status_code=503, content={"status": "initializing", "contexts": counts})
+    return {
+        "status": "ready",
+        "service": "magicpin-vera",
+        "concurrency_target": "1000000_RPS",
+        "contexts_loaded": counts
     }
 
 

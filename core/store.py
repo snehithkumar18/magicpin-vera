@@ -20,12 +20,16 @@ def utc_now_iso() -> str:
 
 
 class PersistentContextStore:
-    MAX_CONVERSATIONS = 100_000
+    MAX_CONVERSATIONS = 1_000_000
 
     def __init__(self, persistence_file: str = "context_store.json"):
         self._lock = threading.RLock()
         self.start_time = time.time()
         self.persistence_path = Path(__file__).parent.parent / persistence_file
+
+        # 64-stripe partitioned locks for high-throughput zero-contention writes
+        self._num_stripes = 64
+        self._conv_locks = [threading.RLock() for _ in range(self._num_stripes)]
 
         # Context containers: context_id -> payload dict
         self.categories: Dict[str, Dict[str, Any]] = {}
@@ -41,7 +45,7 @@ class PersistentContextStore:
         self.triggers_by_merchant: Dict[str, List[str]] = {}
         self.merchants_by_category: Dict[str, List[str]] = {}
 
-        # Conversation tracking (LRU-capped at MAX_CONVERSATIONS)
+        # Conversation tracking (LRU-capped at 1,000,000 active dialogues)
         self.conversations: Dict[str, Dict[str, Any]] = {}
 
         # Write-behind debounced flusher state
@@ -321,7 +325,8 @@ class PersistentContextStore:
         return self.conversations.get(conversation_id)
 
     def save_conversation(self, conversation_id: str, data: Dict[str, Any]):
-        with self._lock:
+        stripe_idx = abs(hash(conversation_id)) % self._num_stripes
+        with self._conv_locks[stripe_idx]:
             if conversation_id not in self.conversations:
                 self.conversations[conversation_id] = {
                     "conversation_id": conversation_id,
@@ -334,7 +339,8 @@ class PersistentContextStore:
             self._evict_old_conversations_if_needed()
 
     def add_conversation_turn(self, conversation_id: str, turn: Dict[str, Any]):
-        with self._lock:
+        stripe_idx = abs(hash(conversation_id)) % self._num_stripes
+        with self._conv_locks[stripe_idx]:
             if conversation_id not in self.conversations:
                 self.conversations[conversation_id] = {
                     "conversation_id": conversation_id,

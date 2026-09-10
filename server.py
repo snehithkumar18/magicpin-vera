@@ -403,11 +403,15 @@ async def dashboard():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+        <meta http-equiv="Pragma" content="no-cache">
+        <meta http-equiv="Expires" content="0">
         <title>magicpin VERA Engine — Live Control Room</title>
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
         <style>
             * {{ margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }}
-            body {{ background-color: #f8fafc; color: #0f172a; padding: 2.5rem; min-height: 100vh; }}
+            html {{ background-color: #ffffff; }}
+            body {{ background-color: #ffffff; color: #0f172a; padding: 2.5rem; min-height: 100vh; }}
             .container {{ max-width: 1150px; margin: 0 auto; }}
             .header {{ display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 1.8rem; margin-bottom: 2rem; }}
             .badges {{ display: flex; gap: 10px; align-items: center; }}
@@ -768,7 +772,14 @@ async def dashboard():
     </body>
     </html>
     """
-    return HTMLResponse(content=html)
+    return HTMLResponse(
+        content=html,
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0"
+        }
+    )
 
 
 if __name__ == "__main__":

@@ -104,14 +104,14 @@ class EnhancedConversationEngine:
 
         # Dynamic language detection:
         # 1. Inbound message contains Hindi markers -> Hindi/Hinglish
-        # 2. Inbound message is distinctly English -> English
+        # 2. Inbound message contains common English tokens without Hindi -> English
         # 3. Otherwise fallback to merchant/customer profile preference
         msg_has_hindi = bool(re.search(
             r"\b(?:namaste|haan|ha|bhai|theek|kardo|kar do|bhejo|bhej|nahi|mat|kal|parso|aaj|shukriya|kitna|kaise|kya|mehenga|sahi|bilkul|chalega|aap|tum|hum|yahan|wahan|dhanyawaad|kripya)\b",
             msg_lower
         ))
         msg_is_english = bool(re.search(
-            r"\b(?:can you|instead of|margins? are tight|please|thank you|could you|what is|how much|let's|lets|we need|i want|send me)\b",
+            r"\b(?:how|what|where|when|why|who|can|could|would|should|is|are|do|does|did|will|train|workout|chest|fitness|gym|exercise|routine|tell|give|show|explain|help|price|cost|pricing|timing|schedule|appointment|book|menu|service|please|thank|thanks|hello|hi|hey|let's|lets|we|i|my|you|your|instead|margins?)\b",
             msg_lower
         )) and not msg_has_hindi
 
@@ -328,7 +328,7 @@ class EnhancedConversationEngine:
         # 9. PRICE / COST INQUIRY
         # ---------------------------------------------------------------------
         for pattern in self.PRICE_INQUIRY_PATTERNS:
-            if re.search(pattern, msg_lower) or "?" in msg_clean:
+            if re.search(pattern, msg_lower):
                 active_offers = [o.get("title") for o in merchant.get("offers", []) if o.get("status") == "active"]
                 offer_text = active_offers[0] if active_offers else "Transparent, standardized rates"
                 
@@ -387,17 +387,117 @@ class EnhancedConversationEngine:
             )
 
         # ---------------------------------------------------------------------
-        # 11. GENERAL CONTINUATION
+        # 11. DOMAIN & SERVICE CONSULTATION QUERIES
+        # ---------------------------------------------------------------------
+        # Gyms: workout, exercise, chest, training, weight, muscle
+        if cat_slug == "gyms" and re.search(r"\b(?:train|training|workout|exercise|chest|bench|bicep|cardio|weight|loss|fat|muscle|gain|routine|program|diet)\b", msg_lower):
+            if is_hindi:
+                body = (
+                    f"{m_name} mein hamare trainers structured hypertrophy aur strength programming "
+                    f"(chest, compound lifts aur personalized splits) guide karte hain. "
+                    f"Kya aap senior trainer ke sath free assessment ya trial session book karna chahte hain? Reply YES karein!"
+                )
+            else:
+                body = (
+                    f"At {m_name}, our certified trainers structure chest and strength training around progressive overload "
+                    f"(bench presses, incline dumbbells, and targeted cable flyes). "
+                    f"Would you like to book a 1-on-1 personal training assessment or trial session? Reply YES to connect!"
+                )
+            return ReplyActionResponse(
+                action="send",
+                body=body,
+                cta="binary_yes_no",
+                rationale="Expert domain consultation: answered fitness training inquiry with specific exercise anchors and a low-friction trial CTA.",
+            )
+
+        # Dentists: teeth, dental, pain, cleaning, whitening, braces, cavity
+        if cat_slug == "dentists" and re.search(r"\b(?:tooth|teeth|dental|pain|clean|cleaning|whitening|cavity|root canal|braces|dentist|appointment|doctor)\b", msg_lower):
+            if is_hindi:
+                body = (
+                    f"{m_name} mein painless clinical evaluations, deep cleaning aur dental care available hain. "
+                    f"Kya aap doctor consultation slot book karna chahte hain? Reply YES karein!"
+                )
+            else:
+                body = (
+                    f"At {m_name}, we provide specialized clinical evaluations, dental cleanings, and preventive care. "
+                    f"Would you like to schedule an appointment with our senior dental specialist? Reply YES to view open slots."
+                )
+            return ReplyActionResponse(
+                action="send",
+                body=body,
+                cta="binary_yes_no",
+                rationale="Domain clinical inquiry response with low-friction appointment booking CTA.",
+            )
+
+        # Salons: hair, skin, facial, bridal, massage, styling, haircut
+        if cat_slug == "salons" and re.search(r"\b(?:hair|cut|haircut|facial|skin|bridal|glow|color|colour|massage|spa|styling|salon)\b", msg_lower):
+            if is_hindi:
+                body = (
+                    f"{m_name} mein senior stylists ke sath customized hair care, facial aur styling treatments available hain. "
+                    f"Aaj ke appointment slot ke liye reply YES karein!"
+                )
+            else:
+                body = (
+                    f"At {m_name}, our senior stylists offer personalized consultations for hair treatments, skincare, and bridal styling. "
+                    f"Reply YES to check available appointment slots today!"
+                )
+            return ReplyActionResponse(
+                action="send",
+                body=body,
+                cta="binary_yes_no",
+                rationale="Salon service inquiry response with direct appointment reservation CTA.",
+            )
+
+        # Restaurants: food, menu, thali, table, order, dish, biryani, specials
+        if cat_slug == "restaurants" and re.search(r"\b(?:food|menu|thali|table|order|eat|dinner|lunch|dish|specials?|booking|taste)\b", msg_lower):
+            if is_hindi:
+                body = (
+                    f"{m_name} mein freshly prepared authentic dishes aur specials available hain. "
+                    f"Digital menu card dekhne ya table reserve karne ke liye reply YES karein!"
+                )
+            else:
+                body = (
+                    f"At {m_name}, our chef prepares freshly made regional specialties and daily signature meal boxes. "
+                    f"Reply YES to receive our digital menu card or reserve a table!"
+                )
+            return ReplyActionResponse(
+                action="send",
+                body=body,
+                cta="binary_yes_no",
+                rationale="Restaurant hospitality inquiry response with menu & table reservation CTA.",
+            )
+
+        # Pharmacies: medicine, tablet, dose, stock, refill, prescription
+        if cat_slug == "pharmacies" and re.search(r"\b(?:medicine|tablet|drug|dose|stock|refill|prescription|pharmacy|chemist)\b", msg_lower):
+            if is_hindi:
+                body = (
+                    f"{m_name} mein genuine medicines aur prescription refills available hain. "
+                    f"Dispensary desk se connect karne ya medicine check karne ke liye reply YES karein!"
+                )
+            else:
+                body = (
+                    f"At {m_name}, our licensed pharmacists assist with prescription refills, authentic medicines, and wellness supplies. "
+                    f"Reply YES to connect directly with the dispensary counter."
+                )
+            return ReplyActionResponse(
+                action="send",
+                body=body,
+                cta="binary_yes_no",
+                rationale="Pharmacy consultation inquiry response with direct dispensary counter assistance CTA.",
+            )
+
+        # ---------------------------------------------------------------------
+        # 12. GENERAL CONTINUATION
         # ---------------------------------------------------------------------
         if is_hindi:
             body = (
-                f"Samajh gayi! {m_name} ke liye aapki preference save kar li hai. "
-                f"Aapki marketing aur promotions ke liye agla draft yahan ready hai."
+                f"Samajh gayi! {m_name} ke liye aapki request note kar li hai. "
+                f"Team se connect karne ya services explore karne ke liye reply YES karein!"
             )
         else:
             body = (
-                f"Got it! I've updated your preferences for {m_name}. "
-                f"Here is your next marketing draft ready whenever you want to proceed."
+                f"Got it! At {m_name}, I'm here to help with your appointments, services, and queries. "
+                f"Reply YES to connect with our team or let me know what you'd like to explore next!"
             )
         return ReplyActionResponse(
             action="send",

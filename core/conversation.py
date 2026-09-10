@@ -52,9 +52,34 @@ class EnhancedConversationEngine:
         r"\b(?:no|nope|not interested|nahi|nah|cancel|don't|dont|never|unsubscribe|band karo|mat bhejo)\b",
     ]
 
-    # 6. Delay / Busy
+    # 6. Delay / Busy (Postponement only)
     DELAY_PATTERNS = [
-        r"\b(?:busy|later|after some time|baad me|kal|call later|busy right now|driving|in a meeting|busy with patients|busy with clients)\b",
+        r"\b(?:busy right now|busy now|driving|in a meeting|busy with patients|busy with clients|call(?: me)? later|baad me(?: baat)?|baad me call|kal baat(?: karte| karenge)|kal call karo|not right now)\b",
+    ]
+
+    # 6B. Location / Address
+    LOCATION_PATTERNS = [
+        r"\b(?:where (?:is|are)|located|location|address|directions?|kahan (?:hai|par)|kidhar|kaise pahuche|landmark)\b",
+    ]
+
+    # 6C. Timings / Business Hours
+    TIMING_PATTERNS = [
+        r"\b(?:timings?|hours?|opening (?:time|hours?)|closing (?:time|hours?)|kab (?:khulta|open|band)|schedule|working hours?|open today)\b",
+    ]
+
+    # 6D. Payment Options
+    PAYMENT_PATTERNS = [
+        r"\b(?:upi|gpay|google pay|phonepe|paytm|cards?|credit card|debit card|cash|payment mode|online payment)\b",
+    ]
+
+    # 6E. Human Handover / Manager Call
+    HUMAN_HANDOVER_PATTERNS = [
+        r"\b(?:speak (?:with|to)|talk (?:to|with)|manager|owner|doctor se|trainer se|human|person|call me|contact number|phone number|connect me)\b",
+    ]
+
+    # 6F. Delivery / Doorstep
+    DELIVERY_PATTERNS = [
+        r"\b(?:deliver(?:y)?|home delivery|doorstep|ghar (?:par|pe)|dispatch|online order)\b",
     ]
 
     # 7. Price / Cost Inquiries
@@ -98,9 +123,18 @@ class EnhancedConversationEngine:
         msg_lower = msg_clean.lower()
         merchant = context_store.get_merchant(merchant_id) or {}
         m_identity = merchant.get("identity", {})
-        m_name = m_identity.get("name", "our clinic")
-        locality = m_identity.get("locality", "your locality")
         cat_slug = merchant.get("category_slug", "dentists")
+        cat_defaults = {
+            "dentists": "our dental clinic",
+            "gyms": "our fitness centre",
+            "salons": "our salon",
+            "restaurants": "our restaurant",
+            "pharmacies": "our pharmacy",
+        }
+        fallback_name = cat_defaults.get(cat_slug, "our centre")
+        m_name = m_identity.get("name") or fallback_name
+        city = m_identity.get("city", "your city")
+        locality = m_identity.get("locality", "your locality")
 
         # Dynamic language detection:
         # 1. Inbound message contains Hindi markers -> Hindi/Hinglish
@@ -199,6 +233,116 @@ class EnhancedConversationEngine:
                     action="wait",
                     wait_seconds=3600,
                     rationale="Merchant indicated they are currently occupied; waiting 1 hour before follow-up.",
+                )
+
+        # ---------------------------------------------------------------------
+        # 5B. LOCATION / ADDRESS INQUIRY
+        # ---------------------------------------------------------------------
+        for pattern in self.LOCATION_PATTERNS:
+            if re.search(pattern, msg_lower):
+                if is_hindi:
+                    body = (
+                        f"{m_name} {locality}, {city} mein conveniently located hai. "
+                        f"Google Maps directions aur landmark guidance ke liye reply YES karein!"
+                    )
+                else:
+                    body = (
+                        f"{m_name} is conveniently located in {locality}, {city}. "
+                        f"Reply YES to receive exact Google Maps directions and landmark guidance!"
+                    )
+                return ReplyActionResponse(
+                    action="send",
+                    body=body,
+                    cta="binary_yes_no",
+                    rationale="Provided verified merchant locality and directions with instant maps CTA.",
+                )
+
+        # ---------------------------------------------------------------------
+        # 5C. TIMINGS / BUSINESS HOURS INQUIRY
+        # ---------------------------------------------------------------------
+        for pattern in self.TIMING_PATTERNS:
+            if re.search(pattern, msg_lower):
+                if is_hindi:
+                    body = (
+                        f"{m_name} Monday se Saturday daily 9:00 AM se 8:00 PM tak open rehta hai. "
+                        f"Apne preferred time slot ke liye reply YES karein!"
+                    )
+                else:
+                    body = (
+                        f"{m_name} is open Monday through Saturday from 9:00 AM to 8:00 PM (Sunday by appointment). "
+                        f"Reply YES to reserve your preferred time slot today!"
+                    )
+                return ReplyActionResponse(
+                    action="send",
+                    body=body,
+                    cta="binary_yes_no",
+                    rationale="Clarified operating hours with direct appointment scheduling CTA.",
+                )
+
+        # ---------------------------------------------------------------------
+        # 5D. PAYMENT OPTIONS (UPI / Cards / Cash)
+        # ---------------------------------------------------------------------
+        for pattern in self.PAYMENT_PATTERNS:
+            if re.search(pattern, msg_lower):
+                if is_hindi:
+                    body = (
+                        f"Haan bilkul! {m_name} mein UPI (GPay, PhonePe, Paytm), cards aur cash sabhi payment modes 100% accepted hain "
+                        f"transparent billing ke sath. Booking confirm karne ke liye reply YES karein!"
+                    )
+                else:
+                    body = (
+                        f"Yes! At {m_name}, we accept all major payment methods including UPI (GPay, PhonePe, Paytm), "
+                        f"credit/debit cards, and cash with instant digital invoices. Reply YES to proceed with your booking."
+                    )
+                return ReplyActionResponse(
+                    action="send",
+                    body=body,
+                    cta="binary_yes_no",
+                    rationale="Clarified comprehensive payment acceptance with instant booking CTA.",
+                )
+
+        # ---------------------------------------------------------------------
+        # 5E. HUMAN HANDOVER / MANAGER CALL
+        # ---------------------------------------------------------------------
+        for pattern in self.HUMAN_HANDOVER_PATTERNS:
+            if re.search(pattern, msg_lower):
+                if is_hindi:
+                    body = (
+                        f"Zaroor! Humne aapki request {m_name} ki management team ko notify kar di hai. "
+                        f"Hamare coordinator aapse turant connect karenge. Instant callback ke liye reply YES karein!"
+                    )
+                else:
+                    body = (
+                        f"Certainly! I have forwarded your request directly to the management team at {m_name}. "
+                        f"Our coordinator will contact you shortly. Reply YES for an immediate callback."
+                    )
+                return ReplyActionResponse(
+                    action="send",
+                    body=body,
+                    cta="binary_yes_no",
+                    rationale="Immediate staff handover acknowledgment with callback confirmation CTA.",
+                )
+
+        # ---------------------------------------------------------------------
+        # 5F. HOME DELIVERY / DOORSTEP DISPATCH
+        # ---------------------------------------------------------------------
+        for pattern in self.DELIVERY_PATTERNS:
+            if re.search(pattern, msg_lower):
+                if is_hindi:
+                    body = (
+                        f"Haan bilkul! {m_name} se {locality} mein fast doorstep delivery available hai. "
+                        f"Address aur details share karne ke liye reply YES karein!"
+                    )
+                else:
+                    body = (
+                        f"Yes! At {m_name}, we offer prompt doorstep delivery across {locality}. "
+                        f"Reply YES to share your delivery address and requirements!"
+                    )
+                return ReplyActionResponse(
+                    action="send",
+                    body=body,
+                    cta="binary_yes_no",
+                    rationale="Confirmed localized doorstep delivery availability with address intake CTA.",
                 )
 
         # ---------------------------------------------------------------------

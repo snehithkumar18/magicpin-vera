@@ -383,19 +383,19 @@ async def dashboard():
     events_html = ""
     for ev in list(recent_events)[:15]:
         ev_type = ev.get("type", "EVENT")
-        color = "#58a6ff" if "PUSH" in ev_type else ("#3fb950" if "TICK" in ev_type else "#f0883e")
+        color = "#0284c7" if "PUSH" in ev_type else ("#16a34a" if "TICK" in ev_type else "#ea580c")
         detail = ev.get("body_snippet") or ev.get("rationale") or f"{ev.get('scope')}: {ev.get('id')}"
         events_html += f"""
-        <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #1e293b; font-size: 0.88rem;">
+        <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 0.88rem;">
             <div style="display: flex; gap: 10px; align-items: center;">
                 <span style="color: #64748b; font-family: monospace;">[{ev.get('ts')}]</span>
-                <span style="background: {color}22; color: {color}; border: 1px solid {color}44; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">{ev_type}</span>
-                <span style="color: #cbd5e1;">{detail}</span>
+                <span style="background: {color}18; color: {color}; border: 1px solid {color}44; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">{ev_type}</span>
+                <span style="color: #334155;">{detail}</span>
             </div>
         </div>
         """
     if not events_html:
-        events_html = "<div id='emptyTelemetry' style='color: #64748b; padding: 20px 0; text-align: center;'>Awaiting live judge telemetry stream... Click any scenario above to test!</div>"
+        events_html = "<div id='emptyTelemetry' style='color: #94a3b8; padding: 20px 0; text-align: center;'>Awaiting live judge telemetry stream... Click any scenario above to test!</div>"
 
     html = f"""
     <!DOCTYPE html>
@@ -404,52 +404,53 @@ async def dashboard():
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>magicpin VERA Engine — Live Control Room</title>
-        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
         <style>
             * {{ margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }}
-            body {{ background-color: #0b0f19; color: #f0f6fc; padding: 2.5rem; min-height: 100vh; }}
+            body {{ background-color: #f8fafc; color: #0f172a; padding: 2.5rem; min-height: 100vh; }}
             .container {{ max-width: 1150px; margin: 0 auto; }}
-            .header {{ display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1f293d; padding-bottom: 1.8rem; margin-bottom: 2rem; }}
+            .header {{ display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 1.8rem; margin-bottom: 2rem; }}
             .badges {{ display: flex; gap: 10px; align-items: center; }}
-            .badge-live {{ background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 6px 14px; border-radius: 30px; font-size: 0.82rem; font-weight: 800; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 0 20px rgba(16, 185, 129, 0.3); }}
-            .badge-link {{ background: #1e293b; color: #38bdf8; border: 1px solid #334155; padding: 6px 12px; border-radius: 20px; font-size: 0.82rem; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s; }}
-            .badge-link:hover {{ background: #334155; color: white; }}
+            .badge-live {{ background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 6px 14px; border-radius: 30px; font-size: 0.82rem; font-weight: 800; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25); }}
+            .badge-link {{ background: #ffffff; color: #0284c7; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 20px; font-size: 0.82rem; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }}
+            .badge-link:hover {{ background: #0284c7; color: white; border-color: #0284c7; }}
             .pulse-dot {{ width: 8px; height: 8px; border-radius: 50%; background: white; animation: pulse 1.5s infinite; }}
             @keyframes pulse {{ 0% {{ opacity: 0.4; }} 50% {{ opacity: 1; }} 100% {{ opacity: 0.4; }} }}
             .grid-stats {{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 1.2rem; margin-bottom: 2.2rem; }}
-            .card {{ background: #131b2e; border: 1px solid #23304a; border-radius: 12px; padding: 1.4rem; box-shadow: 0 4px 20px rgba(0,0,0,0.25); }}
-            .card-title {{ color: #94a3b8; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }}
-            .card-num {{ font-size: 2.2rem; font-weight: 800; color: #38bdf8; }}
-            .card-sub {{ font-size: 0.75rem; color: #64748b; margin-top: 4px; }}
-            .panel {{ background: #131b2e; border: 1px solid #23304a; border-radius: 14px; padding: 1.8rem; margin-bottom: 2rem; }}
+            .card {{ background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.4rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }}
+            .card-title {{ color: #64748b; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }}
+            .card-num {{ font-size: 2.2rem; font-weight: 800; color: #0284c7; }}
+            .card-sub {{ font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }}
+            .panel {{ background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 1.8rem; margin-bottom: 2rem; box-shadow: 0 4px 16px rgba(0,0,0,0.03); }}
             .panel-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem; }}
-            .panel-title {{ font-size: 1.1rem; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 8px; }}
-            .spec-badge {{ background: #1e293b; border: 1px solid #334155; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace; }}
-            .btn-scenario {{ background: #1e293b; color: #f8fafc; border: 1px solid #334155; padding: 8px 14px; border-radius: 8px; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }}
-            .btn-scenario:hover {{ background: #0284c7; border-color: #38bdf8; transform: translateY(-1px); }}
+            .panel-title {{ font-size: 1.1rem; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 8px; }}
+            .spec-badge {{ background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace; font-weight: 600; }}
+            .btn-scenario {{ background: #f8fafc; color: #334155; border: 1px solid #cbd5e1; padding: 8px 14px; border-radius: 8px; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }}
+            .btn-scenario:hover {{ background: #0284c7; color: white; border-color: #0284c7; transform: translateY(-1px); box-shadow: 0 4px 10px rgba(2, 132, 199, 0.2); }}
             .scenario-group {{ display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1.2rem; }}
             .interactive-box {{ display: flex; gap: 10px; margin-top: 1rem; }}
-            .input-select {{ background: #0b0f19; color: #f1f5f9; border: 1px solid #334155; padding: 10px 14px; border-radius: 8px; font-size: 0.88rem; outline: none; }}
-            .input-text {{ flex: 1; background: #0b0f19; color: #f1f5f9; border: 1px solid #334155; padding: 10px 14px; border-radius: 8px; font-size: 0.88rem; outline: none; }}
-            .input-text:focus {{ border-color: #38bdf8; }}
-            .btn-send {{ background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer; transition: all 0.2s; }}
-            .btn-send:hover {{ filter: brightness(1.15); }}
-            .result-card {{ background: #0b0f19; border: 1px solid #1e293b; border-radius: 10px; padding: 1.2rem; margin-top: 1.2rem; display: none; }}
+            .input-select {{ background: #ffffff; color: #0f172a; border: 1px solid #cbd5e1; padding: 10px 14px; border-radius: 8px; font-size: 0.88rem; outline: none; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }}
+            .input-select:focus {{ border-color: #0284c7; }}
+            .input-text {{ flex: 1; background: #ffffff; color: #0f172a; border: 1px solid #cbd5e1; padding: 10px 14px; border-radius: 8px; font-size: 0.88rem; outline: none; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }}
+            .input-text:focus {{ border-color: #0284c7; box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12); }}
+            .btn-send {{ background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25); }}
+            .btn-send:hover {{ filter: brightness(1.1); transform: translateY(-1px); }}
+            .result-card {{ background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.2rem; margin-top: 1.2rem; display: none; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }}
             .result-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; }}
             .tag {{ padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }}
-            .tag-action {{ background: #10b98122; color: #34d399; border: 1px solid #10b98144; }}
-            .tag-cta {{ background: #38bdf822; color: #38bdf8; border: 1px solid #38bdf844; }}
-            .tag-latency {{ background: #a855f722; color: #c084fc; border: 1px solid #a855f744; }}
-            .result-body {{ font-size: 0.95rem; line-height: 1.6; color: #f1f5f9; background: #131b2e; padding: 1rem; border-radius: 8px; border-left: 3px solid #38bdf8; margin-bottom: 0.8rem; }}
-            .result-meta {{ font-size: 0.82rem; color: #94a3b8; font-style: italic; }}
+            .tag-action {{ background: #dcfce7; color: #15803d; border: 1px solid #86efac; }}
+            .tag-cta {{ background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; }}
+            .tag-latency {{ background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; }}
+            .result-body {{ font-size: 0.95rem; line-height: 1.6; color: #0f172a; background: #ffffff; border: 1px solid #e2e8f0; padding: 1.2rem; border-radius: 8px; border-left: 4px solid #0284c7; margin-bottom: 0.8rem; box-shadow: 0 1px 4px rgba(0,0,0,0.03); }}
+            .result-meta {{ font-size: 0.85rem; color: #64748b; font-style: italic; }}
         </style>
     </head>
     <body>
         <div class="container">
             <div class="header">
                 <div>
-                    <h1 style="font-size: 1.8rem; font-weight: 800; letter-spacing: -0.02em;">VERA Message Engine <span style="font-size: 0.9rem; color: #94a3b8; font-weight: 600;">(magicpin AI Challenge)</span></h1>
-                    <p style="color: #94a3b8; margin-top: 6px; font-size: 0.92rem;">Deterministic 4-Context Message Composition & Conversational State Machine</p>
+                    <h1 style="font-size: 1.8rem; font-weight: 800; letter-spacing: -0.02em; color: #0f172a;">VERA Message Engine <span style="font-size: 0.9rem; color: #64748b; font-weight: 600;">(magicpin AI Challenge)</span></h1>
+                    <p style="color: #64748b; margin-top: 6px; font-size: 0.92rem;">Deterministic 4-Context Message Composition & Conversational State Machine</p>
                 </div>
                 <div class="badges">
                     <a href="/docs" target="_blank" class="badge-link">📚 Swagger /docs</a>
@@ -479,24 +480,25 @@ async def dashboard():
                 <div class="card">
                     <div class="card-title">Triggers</div>
                     <div class="card-num" id="countTriggers">{counts.get('trigger', 0)}</div>
-                    <div class="card-sub">External & Internal</div>
+                    <div class="card-sub">Active Signal Hooks</div>
                 </div>
                 <div class="card">
-                    <div class="card-title">Uptime</div>
-                    <div class="card-num" id="countUptime" style="color: #34d399; font-size: 1.7rem;">{uptime}s</div>
-                    <div class="card-sub">&lt; 3ms Avg Latency</div>
+                    <div class="card-title">System Uptime</div>
+                    <div class="card-num" style="color: #10b981;" id="countUptime">{uptime}s</div>
+                    <div class="card-sub">Zero-Downtime State</div>
                 </div>
             </div>
 
-            <!-- INTERACTIVE JUDGE TESTING CONSOLE -->
-            <div class="panel" style="border: 1px solid #38bdf855; box-shadow: 0 0 25px rgba(56, 189, 248, 0.08);">
+            <!-- INTERACTIVE EVALUATOR CONSOLE -->
+            <div class="panel">
                 <div class="panel-header">
-                    <span class="panel-title">🎯 Interactive Judge Testing Console <span style="font-size: 0.8rem; color: #38bdf8; font-weight: 600;">(One-Click Scenario Verification)</span></span>
-                    <span class="spec-badge" style="color: #34d399; border-color: #10b98155;">Ready for Evaluation</span>
+                    <span class="panel-title">🎯 Interactive Judge Testing Console <span style="font-size: 0.82rem; color: #64748b; font-weight: 500;">(One-Click Scenario Verification)</span></span>
+                    <span class="spec-badge" style="background: #ecfdf5; color: #059669; border-color: #a7f3d0;">Ready for Evaluation</span>
                 </div>
-                
-                <p style="font-size: 0.88rem; color: #94a3b8; margin-bottom: 1rem;">Click any scenario below to execute a live API call against the engine and verify deterministic zero-hallucination performance in real time:</p>
-                
+                <p style="color: #64748b; font-size: 0.88rem; margin-bottom: 1.2rem;">
+                    Click any scenario below to execute a live API call against the engine and verify deterministic zero-hallucination performance in real time:
+                </p>
+
                 <div class="scenario-group">
                     <button class="btn-scenario" onclick="runScenario('case1')">🔬 Case 1: Research Digest (/v1/tick)</button>
                     <button class="btn-scenario" onclick="runScenario('autoreply')">🤖 Scenario 1: WhatsApp Auto-Reply Hell</button>
@@ -537,7 +539,7 @@ async def dashboard():
                     <span class="panel-title">Real-Time Telemetry & Judge Action Stream</span>
                     <span class="spec-badge">Auto-Refreshing (3s)</span>
                 </div>
-                <div id="telemetryStream" style="border-top: 1px solid #1e293b;">
+                <div id="telemetryStream" style="border-top: 1px solid #e2e8f0;">
                     {events_html}
                 </div>
             </div>
@@ -549,24 +551,24 @@ async def dashboard():
                     <span class="spec-badge">RFC Compliant</span>
                 </div>
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
-                    <div style="background: #0b0f19; padding: 1rem; border-radius: 8px; border: 1px solid #1e293b;">
+                    <div style="background: #f8fafc; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0;">
                         <span style="background: #0284c7; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">POST</span>
-                        <code style="margin-left: 8px; font-family: monospace; font-size: 0.9rem;">/v1/context</code>
+                        <code style="margin-left: 8px; font-family: monospace; font-size: 0.9rem; color: #0f172a;">/v1/context</code>
                         <p style="color: #64748b; font-size: 0.8rem; margin-top: 4px;">Atomic Context Ingestion with 409 Conflict Protection</p>
                     </div>
-                    <div style="background: #0b0f19; padding: 1rem; border-radius: 8px; border: 1px solid #1e293b;">
+                    <div style="background: #f8fafc; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0;">
                         <span style="background: #0284c7; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">POST</span>
-                        <code style="margin-left: 8px; font-family: monospace; font-size: 0.9rem;">/v1/tick</code>
+                        <code style="margin-left: 8px; font-family: monospace; font-size: 0.9rem; color: #0f172a;">/v1/tick</code>
                         <p style="color: #64748b; font-size: 0.8rem; margin-top: 4px;">Simulated Clock & Proactive Conversational Trigger</p>
                     </div>
-                    <div style="background: #0b0f19; padding: 1rem; border-radius: 8px; border: 1px solid #1e293b;">
+                    <div style="background: #f8fafc; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0;">
                         <span style="background: #0284c7; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">POST</span>
-                        <code style="margin-left: 8px; font-family: monospace; font-size: 0.9rem;">/v1/reply</code>
+                        <code style="margin-left: 8px; font-family: monospace; font-size: 0.9rem; color: #0f172a;">/v1/reply</code>
                         <p style="color: #64748b; font-size: 0.8rem; margin-top: 4px;">Multi-Turn Intent Execution & Auto-Reply Filter</p>
                     </div>
-                    <div style="background: #0b0f19; padding: 1rem; border-radius: 8px; border: 1px solid #1e293b;">
+                    <div style="background: #f8fafc; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0;">
                         <span style="background: #059669; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">GET</span>
-                        <code style="margin-left: 8px; font-family: monospace; font-size: 0.9rem;">/v1/healthz</code>
+                        <code style="margin-left: 8px; font-family: monospace; font-size: 0.9rem; color: #0f172a;">/v1/healthz</code>
                         <p style="color: #64748b; font-size: 0.8rem; margin-top: 4px;">Liveness Probe & Context Store Telemetry</p>
                     </div>
                 </div>
@@ -744,14 +746,14 @@ async def dashboard():
                         let streamHtml = '';
                         data.events.slice(0, 15).forEach(ev => {
                             let evType = ev.type || 'EVENT';
-                            let color = evType.includes('PUSH') ? '#58a6ff' : (evType.includes('TICK') ? '#3fb950' : '#f0883e');
+                            let color = evType.includes('PUSH') ? '#0284c7' : (evType.includes('TICK') ? '#16a34a' : '#ea580c');
                             let detail = ev.body_snippet || ev.rationale || ev.inbound || (ev.scope + ': ' + ev.id);
                             streamHtml += `
-                            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #1e293b; font-size: 0.88rem;">
+                            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 0.88rem;">
                                 <div style="display: flex; gap: 10px; align-items: center;">
                                     <span style="color: #64748b; font-family: monospace;">[${ev.ts}]</span>
-                                    <span style="background: ${color}22; color: ${color}; border: 1px solid ${color}44; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">${evType}</span>
-                                    <span style="color: #cbd5e1;">${detail}</span>
+                                    <span style="background: ${color}18; color: ${color}; border: 1px solid ${color}44; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">${evType}</span>
+                                    <span style="color: #334155;">${detail}</span>
                                 </div>
                             </div>`;
                         });

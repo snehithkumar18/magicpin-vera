@@ -348,7 +348,10 @@ class EnhancedConversationEngine:
         # ---------------------------------------------------------------------
         # 6. COMPOUND INTENT TRACKING (Affirmative + Custom Constraints)
         # ---------------------------------------------------------------------
+        is_question = bool(re.search(r"\?|^(?:can|could|how|what|where|why|do|does|is|are)\b", msg_lower.strip()))
         has_affirmative = any(re.search(p, msg_lower) for p in self.AFFIRMATIVE_PATTERNS)
+        if is_question and not re.search(r"\b(?:yes|ha|haan|sure|proceed|confirm)\b", msg_lower):
+            has_affirmative = False
         
         # Extract price constraints
         price_match = re.search(r"(?:₹|rs\.?\s?)(\d+)", msg_lower) or re.search(r"\b(\d+)\s*(?:rs|rupees|inr)\b", msg_lower)
@@ -534,7 +537,7 @@ class EnhancedConversationEngine:
         # 11. DOMAIN & SERVICE CONSULTATION QUERIES
         # ---------------------------------------------------------------------
         # Pharmacies: Chronic conditions (Diabetes, Sugar, BP, Hypertension, Thyroid, Asthma, Heart)
-        if cat_slug == "pharmacies" and re.search(r"\b(?:diabetes|diabetic|sugar|bp|blood pressure|hypertension|thyroid|asthma|cholesterol|heart|insulin|glucose)\b", msg_lower):
+        if cat_slug == "pharmacies" and re.search(r"\b(?:diabetes|diabetics?|sugar|bp|blood pressure|hypertension|thyroid|asthma|cholesterol|heart|insulin|glucose)\b", msg_lower):
             if is_hindi:
                 body = (
                     f"Diabetes aur chronic health conditions ke liye prescription medicines (jaise Metformin ya Insulin) "
@@ -633,6 +636,29 @@ class EnhancedConversationEngine:
                 body=body,
                 cta="binary_yes_no",
                 rationale="Expert domain consultation: answered fitness training inquiry with specific exercise anchors and a low-friction trial CTA.",
+            )
+
+        # Dentists: Diabetic dental care / chronic health considerations
+        if cat_slug == "dentists" and re.search(r"\b(?:diabetes|diabetics?|sugar|bp|blood pressure|hypertension)\b", msg_lower):
+            if is_hindi:
+                body = (
+                    f"{m_name} mein hum specifically oral aur dental healthcare provide karte hain. "
+                    f"Diabetic patients ke liye periodontal health aur gentle cleaning bahot zaroori hoti hai gum infections prevent karne ke liye. "
+                    f"General diabetes management ke liye MD physician se consult karein. "
+                    f"Kya aap Dr. Meera ke sath gentle dental consultation book karna chahte hain? Reply YES karein!"
+                )
+            else:
+                body = (
+                    f"At {m_name}, we specialize in dental and oral healthcare. "
+                    f"Diabetic patients often require specialized gentle cleanings and periodontal care to prevent gum sensitivity. "
+                    f"For overall diabetes medication, we advise consulting your physician. "
+                    f"Would you like to schedule a specialized dental checkup with Dr. Meera? Reply YES to connect!"
+                )
+            return ReplyActionResponse(
+                action="send",
+                body=body,
+                cta="binary_yes_no",
+                rationale="Specialized diabetic dental guidance: clarified oral care scope while advising physician for systemic diabetes care.",
             )
 
         # Dentists: teeth, dental, pain, cleaning, whitening, braces, cavity, sensitivity

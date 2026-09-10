@@ -533,8 +533,29 @@ class EnhancedConversationEngine:
         # ---------------------------------------------------------------------
         # 11. DOMAIN & SERVICE CONSULTATION QUERIES
         # ---------------------------------------------------------------------
-        # Gyms: workout, exercise, chest, training, weight, muscle
-        if cat_slug == "gyms" and re.search(r"\b(?:train|training|workout|exercise|chest|bench|bicep|cardio|weight|loss|fat|muscle|gain|routine|program|diet)\b", msg_lower):
+        # Salons: pimple, acne, blemish, blackhead, skincare consultation
+        if cat_slug == "salons" and re.search(r"\b(?:pimple|pimples|acne|blemish|blemishes|blackheads?|whiteheads?|tan|tanning|pigmentation|breakout|breakouts)\b", msg_lower):
+            if is_hindi:
+                body = (
+                    f"{m_name} mein hamare skincare specialists targeted anti-acne deep cleanups aur clarifying facials "
+                    f"(tea tree aur salicylic extracts ke sath) offer karte hain jo pores ko unclog karke pimples ko safely reduce karte hain. "
+                    f"Kya aap skincare specialist ke sath consultation ya treatment slot book karna chahte hain? Reply YES karein!"
+                )
+            else:
+                body = (
+                    f"At {m_name}, our skincare specialists recommend targeted anti-acne clarifying facials and deep cleanups "
+                    f"(using tea tree and salicylic treatments) to clear clogged pores and soothe breakouts without scarring. "
+                    f"Would you like to book a skincare consultation or reserve an anti-acne treatment slot? Reply YES to confirm."
+                )
+            return ReplyActionResponse(
+                action="send",
+                body=body,
+                cta="binary_yes_no",
+                rationale="Specialized salon skincare consultation: answered acne/pimple query with clarifying facial guidance and low-friction booking CTA.",
+            )
+
+        # Gyms: workout, exercise, chest, training, weight, muscle, abs, belly, diet
+        if cat_slug == "gyms" and re.search(r"\b(?:train|training|workout|exercise|chest|bench|bicep|cardio|weight|loss|fat|muscle|gain|routine|program|diet|abs|belly|stamina|protein|squat|deadlift)\b", msg_lower):
             if is_hindi:
                 body = (
                     f"{m_name} mein hamare trainers structured hypertrophy aur strength programming "
@@ -554,8 +575,8 @@ class EnhancedConversationEngine:
                 rationale="Expert domain consultation: answered fitness training inquiry with specific exercise anchors and a low-friction trial CTA.",
             )
 
-        # Dentists: teeth, dental, pain, cleaning, whitening, braces, cavity
-        if cat_slug == "dentists" and re.search(r"\b(?:tooth|teeth|dental|pain|clean|cleaning|whitening|cavity|root canal|braces|dentist|appointment|doctor)\b", msg_lower):
+        # Dentists: teeth, dental, pain, cleaning, whitening, braces, cavity, sensitivity
+        if cat_slug == "dentists" and re.search(r"\b(?:tooth|teeth|dental|pain|clean|cleaning|whitening|cavity|root canal|braces|dentist|appointment|doctor|sensitivity|yellow|gums?|bleeding|crooked|alignment)\b", msg_lower):
             if is_hindi:
                 body = (
                     f"{m_name} mein painless clinical evaluations, deep cleaning aur dental care available hain. "
@@ -573,8 +594,8 @@ class EnhancedConversationEngine:
                 rationale="Domain clinical inquiry response with low-friction appointment booking CTA.",
             )
 
-        # Salons: hair, skin, facial, bridal, massage, styling, haircut
-        if cat_slug == "salons" and re.search(r"\b(?:hair|cut|haircut|facial|skin|bridal|glow|color|colour|massage|spa|styling|salon)\b", msg_lower):
+        # Salons: hair, skin, facial, bridal, massage, styling, haircut, grooming
+        if cat_slug == "salons" and re.search(r"\b(?:hair|cut|haircut|facial|skin|bridal|glow|color|colour|massage|spa|styling|salon|pedicure|manicure|waxing|threading|grooming)\b", msg_lower):
             if is_hindi:
                 body = (
                     f"{m_name} mein senior stylists ke sath customized hair care, facial aur styling treatments available hain. "
@@ -593,7 +614,7 @@ class EnhancedConversationEngine:
             )
 
         # Restaurants: food, menu, thali, table, order, dish, biryani, specials
-        if cat_slug == "restaurants" and re.search(r"\b(?:food|menu|thali|table|order|eat|dinner|lunch|dish|specials?|booking|taste)\b", msg_lower):
+        if cat_slug == "restaurants" and re.search(r"\b(?:food|menu|thali|table|order|eat|dinner|lunch|dish|specials?|booking|taste|dosa|idli|coffee|breakfast|snack|curry|veg|non-veg|spicy|sweet|dessert)\b", msg_lower):
             if is_hindi:
                 body = (
                     f"{m_name} mein freshly prepared authentic dishes aur specials available hain. "
@@ -611,8 +632,8 @@ class EnhancedConversationEngine:
                 rationale="Restaurant hospitality inquiry response with menu & table reservation CTA.",
             )
 
-        # Pharmacies: medicine, tablet, dose, stock, refill, prescription
-        if cat_slug == "pharmacies" and re.search(r"\b(?:medicine|tablet|drug|dose|stock|refill|prescription|pharmacy|chemist)\b", msg_lower):
+        # Pharmacies: medicine, tablet, dose, stock, refill, prescription, fever, cold
+        if cat_slug == "pharmacies" and re.search(r"\b(?:medicine|tablet|drug|dose|stock|refill|prescription|pharmacy|chemist|fever|cough|cold|headache|pain|painkiller|syrup|ointment|bandage|vitamin)\b", msg_lower):
             if is_hindi:
                 body = (
                     f"{m_name} mein genuine medicines aur prescription refills available hain. "

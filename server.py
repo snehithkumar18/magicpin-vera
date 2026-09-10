@@ -628,7 +628,8 @@ async def dashboard():
             }
 
             async function sendCustomReply() {
-                const text = document.getElementById('customInput').value.trim();
+                const inputEl = document.getElementById('customInput');
+                const text = inputEl.value.trim();
                 if (!text) return;
                 const merchantId = document.getElementById('merchantSelect').value;
                 const t0 = performance.now();
@@ -647,6 +648,8 @@ async def dashboard():
                     const data = await res.json();
                     const latency = (performance.now() - t0).toFixed(1);
                     renderResult(data, latency, '/v1/reply');
+                    inputEl.value = '';
+                    inputEl.focus();
                     fetchTelemetry();
                 } catch (err) {
                     alert('Error sending reply: ' + err.message);

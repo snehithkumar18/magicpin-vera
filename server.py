@@ -506,7 +506,7 @@ async def dashboard():
                 </div>
 
                 <div class="interactive-box">
-                    <select id="merchantSelect" class="input-select">
+                    <select id="merchantSelect" class="input-select" onchange="onMerchantChange()">
                         <option value="m_001_drmeera_dentist_delhi">Dr. Meera's Dental Clinic (Dentists)</option>
                         <option value="m_007_powerhouse_gym_bangalore">PowerHouse Fitness (Gyms)</option>
                         <option value="m_006_southindiancafe_restaurant_bangalore">Mylari South Indian Cafe (Restaurants)</option>
@@ -627,6 +627,56 @@ async def dashboard():
                 }
             }
 
+            const MERCHANT_TRIGGERS = {
+                'm_001_drmeera_dentist_delhi': 'trg_001_research_digest_dentists',
+                'm_007_powerhouse_gym_bangalore': 'trg_014_seasonal_acquisition_dip_powerhouse',
+                'm_006_southindiancafe_restaurant_bangalore': 'trg_012_milestone_mylari',
+                'm_003_studio11_salon_hyderabad': 'trg_008_curious_ask_studio11',
+                'm_009_apollo_pharmacy_jaipur': 'trg_018_supply_atorvastatin_recall'
+            };
+
+            const MERCHANT_PLACEHOLDERS = {
+                'm_001_drmeera_dentist_delhi': "Reply as Dr. Meera (e.g. 'yes please send patient flyer' or 'teeth cleaning charges?')",
+                'm_007_powerhouse_gym_bangalore': "Reply as Gym Owner / Member (e.g. 'haan launch kardo', 'can you do 150 rs?', or 'chest workout')",
+                'm_006_southindiancafe_restaurant_bangalore': "Reply as Cafe Owner / Diner (e.g. 'haan draft bhejo jaldi' or 'table reservation for lunch?')",
+                'm_003_studio11_salon_hyderabad': "Reply as Salon Owner / Client (e.g. 'yes book appointment' or 'how can i reduce pimples?')",
+                'm_009_apollo_pharmacy_jaipur': "Reply as Chemist / Patient (e.g. 'yes dispatch alert' or 'do you deliver medicines home?')"
+            };
+
+            async function onMerchantChange() {
+                const selectEl = document.getElementById('merchantSelect');
+                const merchantId = selectEl.value;
+                const inputEl = document.getElementById('customInput');
+                if (MERCHANT_PLACEHOLDERS[merchantId]) {
+                    inputEl.placeholder = MERCHANT_PLACEHOLDERS[merchantId];
+                }
+
+                // If input has text, instantly test against the new merchant!
+                if (inputEl.value.trim()) {
+                    sendCustomReply();
+                    return;
+                }
+
+                // Otherwise instantly show Vera's live initial trigger/proactive prompt for this merchant (< 2ms)
+                const triggerId = MERCHANT_TRIGGERS[merchantId];
+                if (!triggerId) return;
+
+                const t0 = performance.now();
+                try {
+                    const res = await fetch('/v1/tick', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ available_triggers: [triggerId] })
+                    });
+                    const data = await res.json();
+                    const latency = (performance.now() - t0).toFixed(1);
+                    renderResult(data, latency, '/v1/tick');
+                    fetchTelemetry();
+                } catch (err) {
+                    console.error('Failed to load merchant trigger:', err);
+                }
+            }
+
             async function sendCustomReply() {
                 const inputEl = document.getElementById('customInput');
                 const text = inputEl.value.trim();
@@ -664,11 +714,13 @@ async def dashboard():
                 let cta = data.cta || (data.actions && data.actions[0] ? data.actions[0].cta : 'N/A');
                 let body = data.body || (data.actions && data.actions[0] ? data.actions[0].body : JSON.stringify(data));
                 let rationale = data.rationale || (data.actions && data.actions[0] ? data.actions[0].rationale : 'Endpoint: ' + endpoint);
+                let convId = data.conversation_id || (data.actions && data.actions[0] ? data.actions[0].conversation_id : 'conv_live');
 
                 if (data.action === 'wait') {
                     body = `⏳ [Action: WAIT ${data.wait_seconds}s] Detected automated greeting. Vera backed off to avoid wasting conversation turns.`;
                 }
 
+                document.getElementById('tagConvId').innerText = convId;
                 document.getElementById('tagAction').innerText = 'ACTION: ' + action.toUpperCase();
                 document.getElementById('tagCta').innerText = 'CTA: ' + cta.toUpperCase();
                 document.getElementById('tagLatency').innerText = 'LATENCY: ' + latency + 'ms';
@@ -709,6 +761,7 @@ async def dashboard():
             }
 
             setInterval(fetchTelemetry, 3000);
+            setTimeout(onMerchantChange, 100);
         </script>
     </body>
     </html>

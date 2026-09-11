@@ -544,20 +544,53 @@ class MessageComposer:
         # ---------------------------------------------------------------------
         elif t_kind == "ipl_match_today":
             salutation = get_merchant_salutation(merchant, category)
+            owner = m_identity.get("owner_first_name") or m_name
             match = t_payload.get("match", "IPL Match")
-            venue = t_payload.get("venue", "Stadium")
+            venue = t_payload.get("venue", "the stadium")
+            is_weeknight = t_payload.get("is_weeknight", True)
             
-            body = (
-                f"{salutation}, big match today — {match} at {venue}! Evening delivery and takeout orders "
-                f"in {locality} peak between 7:30 PM and 10 PM. I've drafted a 'Match Day Combo @ ₹299' "
-                f"promotional banner for {m_name}. Should I activate it on your profile for tonight?"
-            )
+            # Check for active merchant offers
+            active_offers = [o.get("title", "") for o in merchant.get("offers", []) if o.get("status") == "active"]
+            offer_text = f"your {active_offers[0]} (already active)" if active_offers else f"your delivery menu"
+            
+            if not is_weeknight:
+                # Case study 5 pattern: Saturday IPL matches shift dine-in covers to home delivery
+                if is_hindi:
+                    body = (
+                        f"Quick heads-up {owner} — {match} at {venue} tonight, 7:30pm. "
+                        f"Important: Saturday IPL matches usually shift -12% restaurant covers (log ghar par dekhte hain). "
+                        f"Aaj match-night dine-in promo skip kijiye; instead {offer_text} ko delivery-only Saturday special bana kar push karte hain. "
+                        f"Kya main Swiggy banner + Insta story draft kar doon? Live in 10 min."
+                    )
+                else:
+                    body = (
+                        f"Quick heads-up {owner} — {match} at {venue} tonight, 7:30pm. "
+                        f"Important: Saturday IPL matches usually shift -12% restaurant covers (people watch at home). "
+                        f"Skip the match-night promo today; instead push {offer_text} as a delivery-only Saturday special. "
+                        f"Want me to draft the Swiggy banner + an Insta story? Live in 10 min."
+                    )
+            else:
+                if is_hindi:
+                    body = (
+                        f"Quick heads-up {owner} — {match} at {venue} tonight, 7:30pm. "
+                        f"{locality} mein evening delivery orders 7:30-10 PM peak par rehte hain. "
+                        f"Match-night delivery rush ke liye {offer_text} spotlight banner ready hai. "
+                        f"Kya main live kar doon? Live in 10 min."
+                    )
+                else:
+                    body = (
+                        f"Quick heads-up {owner} — {match} at {venue} tonight, 7:30pm. "
+                        f"Evening delivery orders in {locality} peak between 7:30-10 PM on match nights. "
+                        f"I have a match-night delivery spotlight ready leveraging {offer_text}. "
+                        f"Want me to set it live? Live in 10 min."
+                    )
+
             return ComposedMessage(
                 body=AntiHallucinationValidator.sanitize_message(body, category),
                 cta="binary_yes_no",
                 send_as=send_as,
                 suppression_key=suppression_key,
-                rationale="Real-time topical event hook with high conversion potential for evening rush.",
+                rationale=f"Operator-level recommendation for {match}: shifts covers to delivery on weekend match, leveraging existing offer with 10-min commitment cap.",
                 template_name="vera_ipl_event_v1",
                 template_params=[salutation, match, venue],
             )
@@ -747,7 +780,173 @@ class MessageComposer:
             )
 
         # ---------------------------------------------------------------------
-        # 21. FALLBACK CONTEXT SYNTHESIZER
+        # 21. RENEWAL DUE (Subscription Renewal Prompt)
+        # ---------------------------------------------------------------------
+        elif t_kind == "renewal_due":
+            salutation = get_merchant_salutation(merchant, category)
+            days_left = t_payload.get("days_remaining", 12)
+            plan = t_payload.get("plan", "Pro")
+            renewal_amount = t_payload.get("renewal_amount", 4999)
+            views = perf.get("views", 1500)
+            calls = perf.get("calls", 25)
+            
+            if is_hindi:
+                body = (
+                    f"{salutation}, aapka {plan} plan {days_left} din mein renew hone wala hai. "
+                    f"Pichle 30 dinon mein aapki listing ne {views:,} views aur {calls} calls generate kiye — "
+                    f"yeh growth line bani rahe iske liye ₹{renewal_amount:,}/quarter pe renewal lock karna best rahega. "
+                    f"Kya main renewal process start kar doon? Reply YES karein."
+                )
+            else:
+                body = (
+                    f"{salutation}, your {plan} plan renews in {days_left} days. "
+                    f"In the last 30 days your listing generated {views:,} views and {calls} enquiry calls — "
+                    f"locking renewal at ₹{renewal_amount:,}/quarter keeps this growth line intact. "
+                    f"Want me to initiate the renewal? Reply YES."
+                )
+            return ComposedMessage(
+                body=AntiHallucinationValidator.sanitize_message(body, category),
+                cta="binary_yes_no",
+                send_as=send_as,
+                suppression_key=suppression_key,
+                rationale=f"Subscription renewal with {days_left} days remaining; anchored on actual performance data ({views} views, {calls} calls) to justify ROI.",
+                template_name="vera_renewal_due_v1",
+                template_params=[salutation, str(days_left), plan, str(renewal_amount)],
+            )
+
+        # ---------------------------------------------------------------------
+        # 22. REVIEW THEME EMERGED (Negative Review Pattern Alert)
+        # ---------------------------------------------------------------------
+        elif t_kind == "review_theme_emerged":
+            salutation = get_merchant_salutation(merchant, category)
+            theme = t_payload.get("theme", t_payload.get("metric_or_topic", "service quality"))
+            occurrences = t_payload.get("occurrences_30d", 4)
+            trend = t_payload.get("trend", "rising")
+            quote = t_payload.get("common_quote", "")
+            
+            theme_display = theme.replace("_", " ")
+            
+            if is_hindi:
+                body = (
+                    f"{salutation}, pichle 30 dinon mein '{theme_display}' ke baare mein {occurrences} reviews aaye hain "
+                    f"aur trend {trend} hai. "
+                )
+                if quote:
+                    body += f"Ek common feedback: \"{quote}\". "
+                body += (
+                    f"Main ek templated reply draft aur Google Business review response ready kar sakti hoon — "
+                    f"pehle se handle karne se rating protect hoti hai. Kya bhejoon? Reply YES."
+                )
+            else:
+                body = (
+                    f"{salutation}, {occurrences} reviews in the last 30 days mention '{theme_display}' "
+                    f"and the trend is {trend}. "
+                )
+                if quote:
+                    body += f"Common customer quote: \"{quote}\". "
+                body += (
+                    f"I can draft a templated review response and an operational fix checklist — "
+                    f"addressing this early protects your rating. Want me to send the draft? Reply YES."
+                )
+            return ComposedMessage(
+                body=AntiHallucinationValidator.sanitize_message(body, category),
+                cta="binary_yes_no",
+                send_as=send_as,
+                suppression_key=suppression_key,
+                rationale=f"Review theme alert: '{theme_display}' mentioned {occurrences} times (trend: {trend}). Proactive reputation management.",
+                template_name="vera_review_theme_v1",
+                template_params=[salutation, theme_display, str(occurrences)],
+            )
+
+        # ---------------------------------------------------------------------
+        # 23. TRIAL FOLLOWUP (Customer Trial Conversion)
+        # ---------------------------------------------------------------------
+        elif t_kind == "trial_followup":
+            c_salutation = get_customer_salutation(customer, merchant) if customer else f"Hi there, {m_name} here"
+            owner = m_identity.get("owner_first_name") or m_name
+            trial_date = t_payload.get("trial_date", "recently")
+            next_sessions = t_payload.get("next_session_options", [])
+            
+            slot_text = ""
+            if next_sessions:
+                labels = [s.get("label", "") for s in next_sessions[:2] if s.get("label")]
+                if labels:
+                    slot_text = " or ".join(labels)
+            
+            emoji = CATEGORY_EMOJIS.get(cat_slug, "✨")
+            offer = get_active_offer_for_audience(merchant, category, "new_user")
+            
+            if is_hindi:
+                body = f"{c_salutation} {emoji} Aapne {trial_date} ko trial session liya tha — umeed hai pasand aaya! "
+                if slot_text:
+                    body += f"Agle session ke liye {slot_text} available hai. "
+                if offer:
+                    body += f"Membership shuru karne par '{offer}' bhi milega. "
+                body += "Kya slot confirm kar doon? Reply YES."
+            else:
+                body = f"{c_salutation} {emoji} Hope you enjoyed your trial session on {trial_date}! "
+                if slot_text:
+                    body += f"Your next session can be {slot_text}. "
+                if offer:
+                    body += f"Signing up now includes '{offer}'. "
+                body += "Want me to lock your spot? Reply YES — no commitment required."
+            
+            return ComposedMessage(
+                body=AntiHallucinationValidator.sanitize_message(body, category),
+                cta="binary_yes_no",
+                send_as="merchant_on_behalf",
+                suppression_key=suppression_key,
+                rationale=f"Trial followup for customer who trialed on {trial_date}; converting with available slots and active offer.",
+                template_name="vera_trial_followup_v1",
+                template_params=[c_salutation, trial_date],
+            )
+
+        # ---------------------------------------------------------------------
+        # 24. WINBACK ELIGIBLE (Lapsed Merchant Re-engagement)
+        # ---------------------------------------------------------------------
+        elif t_kind == "winback_eligible":
+            salutation = get_merchant_salutation(merchant, category)
+            days_since = t_payload.get("days_since_expiry", 30)
+            dip_pct = t_payload.get("perf_dip_pct", -0.30)
+            lapsed_custs = t_payload.get("lapsed_customers_added_since_expiry", 0)
+            views = perf.get("views", 1500)
+            
+            dip_display = abs(int(dip_pct * 100))
+            
+            if is_hindi:
+                body = (
+                    f"{salutation}, aapka magicpin plan {days_since} din pehle expire hua tha. "
+                    f"Tab se aapki listing visibility {dip_display}% gir gayi hai"
+                )
+                if lapsed_custs > 0:
+                    body += f" aur {lapsed_custs} potential customers lapse ho gaye hain"
+                body += (
+                    f". Reactivation se visibility turant {dip_display}% recover hogi. "
+                    f"Kya main 7-din ka free trial activate kar doon? Reply YES — zero commitment."
+                )
+            else:
+                body = (
+                    f"{salutation}, it's been {days_since} days since your magicpin plan expired. "
+                    f"Since then, your listing visibility dropped {dip_display}%"
+                )
+                if lapsed_custs > 0:
+                    body += f" and {lapsed_custs} potential customers have lapsed"
+                body += (
+                    f". Reactivating now recovers that {dip_display}% visibility immediately. "
+                    f"Want me to set up a 7-day free trial reactivation? Reply YES — zero commitment."
+                )
+            return ComposedMessage(
+                body=AntiHallucinationValidator.sanitize_message(body, category),
+                cta="binary_yes_no",
+                send_as=send_as,
+                suppression_key=suppression_key,
+                rationale=f"Winback for merchant lapsed {days_since} days; visibility down {dip_display}%, {lapsed_custs} customers lapsed. Loss aversion framing.",
+                template_name="vera_winback_v1",
+                template_params=[salutation, str(days_since), str(dip_display)],
+            )
+
+        # ---------------------------------------------------------------------
+        # 25. FALLBACK CONTEXT SYNTHESIZER
         # ---------------------------------------------------------------------
         else:
             salutation = get_merchant_salutation(merchant, category)

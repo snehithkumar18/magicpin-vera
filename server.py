@@ -5,6 +5,7 @@ Exposes the 5 required judging endpoints + live real-time visual telemetry dashb
 
 from __future__ import annotations
 import uuid
+import re
 import time
 from collections import deque
 from datetime import datetime, timezone
@@ -18,6 +19,8 @@ from pydantic import BaseModel, Field
 from core.store import store
 from core.composer import composer
 from core.conversation import conversation_engine
+from core.llm_composer import llm_composer
+from core.models import ComposedMessage
 
 
 def utc_now_iso() -> str:
@@ -209,7 +212,25 @@ async def handle_tick(req: TickRequest):
         else:
             conv_id = f"conv_{m_id}_{trigger_id}"
         
-        composed = composer.compose(category, merchant, trigger, customer)
+        # === LLM-FIRST COMPOSITION (fallback to deterministic) ===
+        llm_result = None
+        if llm_composer.is_available:
+            llm_result = llm_composer.compose(category, merchant, trigger, customer)
+        
+        if llm_result and llm_result.get("body"):
+            # Use LLM result — wrap in ComposedMessage for type consistency
+            composed = ComposedMessage(
+                body=llm_result["body"],
+                cta=llm_result.get("cta", "open_ended"),
+                send_as=llm_result.get("send_as", "vera"),
+                suppression_key=llm_result.get("suppression_key", trigger.get("suppression_key", "")),
+                rationale=llm_result.get("rationale", "LLM-composed message"),
+                template_name=llm_result.get("template_name"),
+                template_params=llm_result.get("template_params"),
+            )
+        else:
+            # Deterministic fallback
+            composed = composer.compose(category, merchant, trigger, customer)
         
         store.save_conversation(conv_id, {
             "conversation_id": conv_id,
@@ -268,15 +289,60 @@ async def handle_reply(req: ReplyRequest):
                 "rationale": "Idempotent response: duplicate webhook retry filtered without re-processing."
             }
 
-    response = conversation_engine.handle_reply(
-        conversation_id=req.conversation_id,
-        merchant_id=req.merchant_id,
-        customer_id=req.customer_id,
-        from_role=req.from_role,
-        message=req.message,
-        turn_number=req.turn_number,
-        context_store=store,
-    )
+    # === SAFETY-FIRST: Deterministic checks for auto-reply, hostile, negative ===
+    msg_lower = req.message.strip().lower()
+    is_auto = conversation_engine.is_auto_reply(req.message)
+    is_hostile = any(re.search(p, msg_lower) for p in conversation_engine.HOSTILE_PATTERNS)
+    is_negative = any(re.search(p, msg_lower) for p in conversation_engine.NEGATIVE_PATTERNS)
+    
+    if is_auto or is_hostile or is_negative:
+        # Use deterministic engine for safety-critical patterns
+        response = conversation_engine.handle_reply(
+            conversation_id=req.conversation_id,
+            merchant_id=req.merchant_id,
+            customer_id=req.customer_id,
+            from_role=req.from_role,
+            message=req.message,
+            turn_number=req.turn_number,
+            context_store=store,
+        )
+    else:
+        # Try LLM for nuanced responses
+        llm_reply = None
+        if llm_composer.is_available:
+            merchant = store.get_merchant(req.merchant_id) or {}
+            cat_slug = merchant.get("category_slug", "dentists")
+            category = store.get_category(cat_slug) or {}
+            conversation = store.get_conversation(req.conversation_id) or {}
+            llm_reply = llm_composer.compose_reply(
+                conversation=conversation,
+                inbound_message=req.message,
+                from_role=req.from_role,
+                merchant=merchant,
+                category=category,
+                customer_id=req.customer_id,
+            )
+        
+        if llm_reply and llm_reply.get("action"):
+            from core.models import ReplyActionResponse
+            response = ReplyActionResponse(
+                action=llm_reply["action"],
+                body=llm_reply.get("body"),
+                cta=llm_reply.get("cta"),
+                wait_seconds=llm_reply.get("wait_seconds"),
+                rationale=llm_reply.get("rationale", "LLM-composed reply"),
+            )
+        else:
+            # Fallback to deterministic engine
+            response = conversation_engine.handle_reply(
+                conversation_id=req.conversation_id,
+                merchant_id=req.merchant_id,
+                customer_id=req.customer_id,
+                from_role=req.from_role,
+                message=req.message,
+                turn_number=req.turn_number,
+                context_store=store,
+            )
     
     store.add_conversation_turn(req.conversation_id, {
         "turn": req.turn_number,
@@ -284,7 +350,7 @@ async def handle_reply(req: ReplyRequest):
         "message": req.message,
         "response_action": response.action,
         "response_body": response.body,
-        "is_auto_reply": conversation_engine.is_auto_reply(req.message),
+        "is_auto_reply": is_auto,
     })
 
     # Telemetry
@@ -337,13 +403,16 @@ async def readyz():
 
 @app.get("/v1/metadata")
 async def metadata():
+    llm_model = "none"
+    if llm_composer.is_available:
+        llm_model = f"{llm_composer.provider}" + (" (gemini-2.0-flash)" if llm_composer.provider == "gemini" else " (llama-3.3-70b)")
     return {
         "team_name": "Snehith Barkam",
         "team_members": ["Snehith Barkam"],
-        "model": "deterministic-grounded-composer-v1",
-        "approach": "Zero-hallucination dual engine with instant intent handoffs and sub-millisecond WA auto-reply filtering",
+        "model": f"llm-grounded-composer-v2 ({llm_model})",
+        "approach": "LLM-first 4-context composer with deterministic safety fallback, rubric-aware system prompt, and anti-hallucination post-validation",
         "contact_email": "snehithbarkam@gmail.com",
-        "version": "1.2.0",
+        "version": "2.0.0",
         "submitted_at": utc_now_iso(),
     }
 

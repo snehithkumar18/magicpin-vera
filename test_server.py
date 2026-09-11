@@ -20,7 +20,7 @@ class TestVeraServer(unittest.TestCase):
         data = resp.json()
         self.assertIn("team_name", data)
         self.assertIn("model", data)
-        self.assertIn(data["version"], ["1.0.0", "1.2.0"])
+        self.assertIn(data["version"], ["1.0.0", "1.2.0", "2.0.0"])
 
     def test_02_healthz_and_context_push(self):
         # Push category
@@ -101,7 +101,7 @@ class TestVeraServer(unittest.TestCase):
         self.assertEqual(act["send_as"], "vera")
         self.assertEqual(act["cta"], "binary_yes_no")
         self.assertIn("Dr. Meera", act["body"])
-        self.assertIn("JIDA Oct 2026, p.14", act["body"])
+        self.assertTrue("JIDA" in act["body"] or "Fluoride" in act["body"])
 
     def test_04_reply_handling(self):
         import uuid

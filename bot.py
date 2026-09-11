@@ -6,6 +6,8 @@ Official entrypoint module for evaluating compose(...)
 from __future__ import annotations
 from typing import Dict, Any, Optional
 from core.composer import composer
+from core.llm_composer import llm_composer
+from core.models import ComposedMessage
 
 
 def compose(
@@ -15,7 +17,7 @@ def compose(
     customer: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
-    Deterministic message composition function for Vera.
+    LLM-first message composition with deterministic fallback.
     
     Args:
         category: CategoryContext dict
@@ -33,6 +35,16 @@ def compose(
             - template_name: str (optional WhatsApp template name)
             - template_params: list[str] (optional template parameters)
     """
+    # Try LLM-powered composition first
+    if llm_composer.is_available:
+        llm_result = llm_composer.compose(category, merchant, trigger, customer)
+        if llm_result and llm_result.get("body"):
+            # Ensure all required fields
+            llm_result.setdefault("template_name", None)
+            llm_result.setdefault("template_params", None)
+            return llm_result
+
+    # Deterministic fallback
     result = composer.compose(category, merchant, trigger, customer)
     return result.model_dump()
 

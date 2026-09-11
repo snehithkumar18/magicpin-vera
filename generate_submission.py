@@ -5,6 +5,7 @@ Iterates over canonical test pairs in expanded/test_pairs.json.
 
 from __future__ import annotations
 import json
+import time
 from pathlib import Path
 from bot import compose
 
@@ -69,6 +70,7 @@ def main():
 
         # Compose message
         composed = compose(category, merchant, trigger, customer)
+        print(f"[{test_id}] Composed via {'LLM' if 'Decision Quality' in str(composed.get('rationale')) or 'Targets' in str(composed.get('rationale')) or 'LLM' in str(composed.get('rationale')) else 'deterministic'}")
 
         entry = {
             "test_id": test_id,
@@ -79,6 +81,7 @@ def main():
             "rationale": composed["rationale"],
         }
         lines.append(json.dumps(entry, ensure_ascii=False))
+        time.sleep(2.0)
 
     with open(out_file, "w", encoding="utf-8") as f:
         for line in lines:
